@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+python-multipart
+openai
+funasr==1.0.26
+modelscope==1.14.0
+torch
+torchaudio
+python-dotenv==1.0.1
+pydantic==2.6.4
