@@ -8,3 +8,5 @@ torch
 torchaudio
 python-dotenv==1.0.1
 pydantic==2.6.4
+ffmpeg-python
+numpy==1.26.4
