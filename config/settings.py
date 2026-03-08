@@ -18,6 +18,10 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
 LLM_MODEL = os.getenv("LLM_MODEL", "gpt-4-turbo")
 
+# ASR Configuration
+# Options: "funasr", "faster-whisper", "whisperx"
+ASR_TYPE = os.getenv("ASR_TYPE", "funasr")
+
 # FunASR Configuration
 ASR_MODEL_DIR = os.getenv("ASR_MODEL_DIR", "iic/Speech2Text-Paraformer-Large-16k")
 ASR_MODEL_REVISION = os.getenv("ASR_MODEL_REVISION", "v2.0.4")
@@ -25,6 +29,12 @@ VAD_MODEL = os.getenv("VAD_MODEL", "damo/speech_fsmn_vad_zh-cn-16k-common-pytorc
 VAD_MODEL_REVISION = os.getenv("VAD_MODEL_REVISION", "v2.0.4")
 PUNC_MODEL = os.getenv("PUNC_MODEL", "damo/punc_ct-transformer_zh-cn-common-vocab272727-pytorch")
 PUNC_MODEL_REVISION = os.getenv("PUNC_MODEL_REVISION", "v2.0.4")
+
+# Whisper Configuration (Faster-Whisper / WhisperX)
+WHISPER_MODEL_SIZE = os.getenv("WHISPER_MODEL_SIZE", "base")
+# Device: "cuda", "cpu", "mps" (for Mac)
+WHISPER_DEVICE = os.getenv("WHISPER_DEVICE", "cpu")
+WHISPER_COMPUTE_TYPE = os.getenv("WHISPER_COMPUTE_TYPE", "float32")
 
 # Video & Audio processing config
 DEFAULT_AUDIO_SAMPLE_RATE = 16000
