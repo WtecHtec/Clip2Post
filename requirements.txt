@@ -13,3 +13,5 @@ numpy==1.26.4
 faster-whisper
 whisperx
 markdown
+opencv-python
+pillow

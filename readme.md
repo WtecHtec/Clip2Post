@@ -50,9 +50,13 @@ python cli.py --video ./test/test01.mp4 --transcribe-only
 ```
 
 ### 仅提取高价值片段模式
-提取视频中的高深度、有价值的对话片段，并将其自动切割成若干短视频，输出目录为运行目录下的 `videos/` 文件夹：
+提取视频中的高深度、有价值的对话片段，并将其自动切割成若干短视频，输出目录为 `tasks/TASK_ID/videos/` 文件夹：
 ```bash
 python cli.py --video ./test/test01.mp4 --extract-clips
+```
+如果希望在生成的短视频画面中嵌入自媒体金句字幕，可以添加 `--add-text-overlay` 参数选项：
+```bash
+python cli.py --video ./test/test01.mp4 --extract-clips --add-text-overlay
 ```
 
 ### 仅截图与构建模式
@@ -70,8 +74,7 @@ python cli.py --video ./test/test01.mp4 --screenshots-only ./tasks/TASK_ID/ai/im
 - `ai/`：AI 生成的文章 (`article.md`)、截图规划 (`image.json`) 以及高价值片段规划 (`clips.json`)。
 - `images/`：从视频中提取的关键帧。
 - `article/`：最终生成的 HTML 文章。
-
-通过 `--extract-clips` 模式生成的独立视频片段将保存在当前工作目录的 `videos/` 文件夹下。
+- `videos/`：通过 `--extract-clips` 模式生成的独立视频片段文件。
 
 ## 技术栈
 

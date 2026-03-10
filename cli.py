@@ -17,6 +17,7 @@ def main():
     parser.add_argument("--asr", type=str, choices=["funasr", "faster-whisper", "whisperx"], help="ASR engine to use")
     parser.add_argument("--transcribe-only", action="store_true", help="Only extract audio and generate subtitles/raw text")
     parser.add_argument("--extract-clips", action="store_true", help="Extract high-value video clips based on dialogue content")
+    parser.add_argument("--add-text-overlay", action="store_true", help="Add LLM-generated summary overlay to exported clips (requires --extract-clips)")
     parser.add_argument("--screenshots-only", type=str, help="Path to image.json to only extract screenshots and build HTML")
     args = parser.parse_args()
 
@@ -107,10 +108,9 @@ def main():
                 clips_data = json.load(f)
                 
             print(f"      Found {len(clips_data)} clips. Cutting video...")
-            videos_output_dir = Path("videos").resolve()
-            videos_output_dir.mkdir(parents=True, exist_ok=True)
+            videos_output_dir = task_manager.get_dir("videos")
             
-            cut_video_segments(target_video_path, clips_data, videos_output_dir)
+            cut_video_segments(target_video_path, clips_data, videos_output_dir, add_overlay=args.add_text_overlay)
             print(f"\nClip extraction complete! Clips saved to: {videos_output_dir}")
             return
 
