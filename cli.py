@@ -16,6 +16,7 @@ def main():
     parser.add_argument("--video", "-v", required=True, type=str, help="Path to the input video file (e.g., .mp4, .mov)")
     parser.add_argument("--asr", type=str, choices=["funasr", "faster-whisper", "whisperx"], help="ASR engine to use")
     parser.add_argument("--transcribe-only", action="store_true", help="Only extract audio and generate subtitles/raw text")
+    parser.add_argument("--extract-clips", action="store_true", help="Extract high-value video clips based on dialogue content")
     parser.add_argument("--screenshots-only", type=str, help="Path to image.json to only extract screenshots and build HTML")
     args = parser.parse_args()
 
@@ -86,6 +87,31 @@ def main():
             print(f"  Audio: {audio_path}")
             print(f"  Subtitle: {subtitle_path}")
             print(f"  Raw Text: {raw_output_path}")
+            return
+
+        if args.extract_clips:
+            from llm.clip_generator import ClipGenerator
+            from video.processor import cut_video_segments
+            
+            print("[4/4] Extracting high-value clips via LLM...")
+            try:
+                clip_generator = ClipGenerator()
+            except Exception as e:
+                print(f"Error loading LLM for clips. Details: {e}")
+                sys.exit(1)
+                
+            clips_json_path = task_manager.get_dir("ai") / "clips.json"
+            clip_generator.generate(subtitle_path, clips_json_path)
+            
+            with open(clips_json_path, 'r', encoding='utf-8') as f:
+                clips_data = json.load(f)
+                
+            print(f"      Found {len(clips_data)} clips. Cutting video...")
+            videos_output_dir = Path("videos").resolve()
+            videos_output_dir.mkdir(parents=True, exist_ok=True)
+            
+            cut_video_segments(target_video_path, clips_data, videos_output_dir)
+            print(f"\nClip extraction complete! Clips saved to: {videos_output_dir}")
             return
 
         # Continue with full pipeline

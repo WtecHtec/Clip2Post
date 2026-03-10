@@ -26,3 +26,4 @@ dist-ssr
 */**/*.pyc
 */**/__pycache__
 tasks/*
+*.env
