@@ -16,8 +16,7 @@ from llm.generator import ArticleGenerator
 from screenshot.extractor import ScreenshotExtractor
 from utils.html_builder import build_html_article
 
-# Initialize NLP models (global ones that don't need dynamic config)
-asr_model_global = ASRRecognizer() # Just for reference, not always used directly now
+# Initialize NLP models (global ones that don't need heavy loading at startup)
 screenshot_tool = ScreenshotExtractor()
 
 app = FastAPI(title="Clip2Post V2 API")
@@ -249,9 +248,34 @@ async def get_results(task_id: str):
     html_path = task_manager.get_dir("article") / "article.html"
     html_url = f"/tasks/{task_id}/article/article.html" if html_path.exists() else None
     
-    # Get video clips
+    # Get video clips with metadata
     videos_dir = task_manager.get_dir("videos")
-    video_clips_urls = [f"/tasks/{task_id}/videos/{vid.name}" for vid in sorted(videos_dir.glob("*.mp4"))] if videos_dir.exists() else []
+    clips_json_path = task_manager.get_dir("ai") / "clips.json"
+    clips_metadata = []
+    if clips_json_path.exists():
+        import json
+        with open(clips_json_path, 'r', encoding='utf-8') as f:
+            clips_metadata = json.load(f)
+
+    video_clips_data = []
+    if videos_dir.exists():
+        # video files are named like "01_Title.mp4", "02_Title.mp4"
+        video_files = sorted(videos_dir.glob("*.mp4"))
+        for i, vid in enumerate(video_files):
+            clip_info = {
+                "url": f"/tasks/{task_id}/videos/{vid.name}",
+                "title": f"Clip {i+1}",
+                "summary": "",
+                "content": ""
+            }
+            # Try to match with metadata from clips.json if available
+            if i < len(clips_metadata):
+                m = clips_metadata[i]
+                clip_info["title"] = m.get("title", clip_info["title"])
+                clip_info["summary"] = m.get("summary", "")
+                clip_info["content"] = m.get("content", "")
+            
+            video_clips_data.append(clip_info)
     
     # Get audio
     audio_path = task_manager.get_dir("audio") / "audio.wav"
@@ -266,7 +290,7 @@ async def get_results(task_id: str):
         "markdown": article_content,
         "images": images_urls,
         "html_url": html_url,
-        "video_clips": video_clips_urls,
+        "video_clips": video_clips_data,
         "audio_url": audio_url,
         "source_video": source_video_url
     }

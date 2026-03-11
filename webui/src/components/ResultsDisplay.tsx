@@ -11,6 +11,15 @@ interface ResultsDisplayProps {
 }
 
 export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ results, activeTab, onTabChange }) => {
+    const activeMediaRef = React.useRef<HTMLVideoElement | HTMLAudioElement | null>(null);
+
+    const handlePlay = (e: React.SyntheticEvent<HTMLVideoElement | HTMLAudioElement>) => {
+        const media = e.currentTarget;
+        if (activeMediaRef.current && activeMediaRef.current !== media) {
+            activeMediaRef.current.pause();
+        }
+        activeMediaRef.current = media;
+    };
 
     // Empty State Helper Component
     const EmptyState = ({ message, Icon }: { message: string, Icon: React.ElementType }) => (
@@ -91,7 +100,12 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ results, activeT
                     <div className="video-grid" style={{ gridTemplateColumns: '1fr' }}>
                         {results.source_video ? (
                             <div className="video-item">
-                                <video src={getAssetUrl(results.source_video)} controls style={{ maxHeight: '600px', width: 'auto' }} />
+                                <video
+                                    src={getAssetUrl(results.source_video)}
+                                    controls
+                                    style={{ maxHeight: '600px', width: 'auto' }}
+                                    onPlay={handlePlay}
+                                />
                             </div>
                         ) : (
                             <EmptyState message="No original video file found." Icon={Film} />
@@ -156,11 +170,59 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ results, activeT
                 )}
 
                 {activeTab === 'videos' && (
-                    <div className="video-grid">
+                    <div className="video-list">
                         {results.video_clips && results.video_clips.length > 0 ? (
-                            results.video_clips.map((vid, i) => (
-                                <div key={i} className="video-item">
-                                    <video src={getAssetUrl(vid)} controls />
+                            results.video_clips.map((clip, i) => (
+                                <div key={i} className="video-clip-item" style={{
+                                    display: 'flex',
+                                    gap: '2rem',
+                                    padding: '1.5rem',
+                                    background: 'rgba(255, 255, 255, 0.03)',
+                                    borderRadius: '12px',
+                                    marginBottom: '1.5rem',
+                                    border: '1px solid rgba(255, 255, 255, 0.05)'
+                                }}>
+                                    <div className="video-clip-player" style={{ flex: '0 0 400px' }}>
+                                        <video
+                                            src={getAssetUrl(clip.url)}
+                                            controls
+                                            style={{ width: '100%', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }}
+                                            onPlay={handlePlay}
+                                        />
+                                    </div>
+                                    <div className="video-clip-info" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                                        <h3 style={{
+                                            margin: 0,
+                                            fontSize: '1.4rem',
+                                            color: '#fff',
+                                            borderLeft: '4px solid #3b82f6',
+                                            paddingLeft: '12px'
+                                        }}>
+                                            {clip.title}
+                                        </h3>
+                                        <div style={{
+                                            fontSize: '1rem',
+                                            color: '#3b82f6',
+                                            fontWeight: 500,
+                                            background: 'rgba(59, 130, 246, 0.1)',
+                                            padding: '4px 12px',
+                                            borderRadius: '4px',
+                                            alignSelf: 'start'
+                                        }}>
+                                            {clip.summary}
+                                        </div>
+                                        <div style={{
+                                            fontSize: '0.95rem',
+                                            color: 'rgba(255, 255, 255, 0.8)',
+                                            lineHeight: 1.6,
+                                            whiteSpace: 'pre-wrap',
+                                            background: 'rgba(0, 0, 0, 0.2)',
+                                            padding: '1rem',
+                                            borderRadius: '8px'
+                                        }}>
+                                            {clip.content}
+                                        </div>
+                                    </div>
                                 </div>
                             ))
                         ) : (
@@ -174,7 +236,12 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ results, activeT
                 {activeTab === 'audio' && (
                     <div style={{ padding: '1rem', height: '100%' }}>
                         {results.audio_url ? (
-                            <audio src={getAssetUrl(results.audio_url)} controls className="audio-player" />
+                            <audio
+                                src={getAssetUrl(results.audio_url)}
+                                controls
+                                className="audio-player"
+                                onPlay={handlePlay}
+                            />
                         ) : (
                             <EmptyState message="No audio extracted." Icon={Mic} />
                         )}

@@ -6,12 +6,19 @@ export interface TaskStatus {
   state: 'pending' | 'processing' | 'completed' | 'error';
 }
 
+export interface ClipMetadata {
+  url: string;
+  title: string;
+  summary: string;
+  content: string;
+}
+
 export interface TaskResults {
   subtitles: string;
   markdown: string;
   images: string[];
   html_url: string;
-  video_clips?: string[];
+  video_clips?: ClipMetadata[];
   audio_url?: string;
   source_video?: string;
 }
