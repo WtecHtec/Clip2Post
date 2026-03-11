@@ -11,11 +11,44 @@ export interface TaskResults {
   markdown: string;
   images: string[];
   html_url: string;
+  video_clips?: string[];
+  audio_url?: string;
+  source_video?: string;
 }
 
-export const uploadVideo = async (file: File): Promise<string> => {
+export interface TaskOverview extends TaskStatus {
+  task_id: string;
+  created_at?: number;
+}
+
+export interface UploadOptions {
+  asrEngine: string;
+  extractClips: boolean;
+  addOverlay: boolean;
+  generateArticle: boolean;
+  generateImages: boolean;
+  generateHtml: boolean;
+  customPrompt: string;
+  llmApiKey: string;
+  llmBaseUrl: string;
+  llmModel: string;
+}
+
+export const uploadVideo = async (file: File, options?: UploadOptions): Promise<string> => {
   const formData = new FormData();
   formData.append('file', file);
+  if (options) {
+    formData.append('asr_engine', options.asrEngine);
+    formData.append('extract_clips', String(options.extractClips));
+    formData.append('add_overlay', String(options.addOverlay));
+    formData.append('generate_article', String(options.generateArticle));
+    formData.append('generate_images', String(options.generateImages));
+    formData.append('generate_html', String(options.generateHtml));
+    formData.append('custom_prompt', options.customPrompt);
+    formData.append('llm_api_key', options.llmApiKey);
+    formData.append('llm_base_url', options.llmBaseUrl);
+    formData.append('llm_model', options.llmModel);
+  }
 
   const response = await fetch(`${API_BASE_URL}/upload`, {
     method: 'POST',
@@ -48,6 +81,17 @@ export const fetchResults = async (taskId: string): Promise<TaskResults> => {
   }
 
   return await response.json();
+};
+
+export const fetchTasks = async (): Promise<TaskOverview[]> => {
+  const response = await fetch(`${API_BASE_URL}/tasks`);
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch tasks`);
+  }
+
+  const data = await response.json();
+  return data.tasks || [];
 };
 
 export const getAssetUrl = (path: string): string => {

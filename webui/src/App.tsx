@@ -1,17 +1,64 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Upload, FileText, Image as ImageIcon, Layout, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
-import classNames from 'classnames';
-import { uploadVideo, pollStatus, fetchResults, getAssetUrl } from './api';
-import type { TaskStatus, TaskResults } from './api';
+import { useState, useEffect } from 'react';
+import { Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { uploadVideo, pollStatus, fetchResults, fetchTasks } from './api';
+import type { TaskStatus, TaskResults, UploadOptions, TaskOverview } from './api';
+
+import { Sidebar } from './components/Sidebar';
+import { UploadForm } from './components/UploadForm';
+import { ResultsDisplay } from './components/ResultsDisplay';
+import type { LLMSettings } from './components/SettingsPanel';
 
 function App() {
   const [file, setFile] = useState<File | null>(null);
   const [taskId, setTaskId] = useState<string | null>(null);
-  const [status, setStatus] = useState<TaskStatus | null>(null);
+  const [status, setStatus] = useState<TaskStatus | any>(null);
   const [results, setResults] = useState<TaskResults | null>(null);
-  const [activeTab, setActiveTab] = useState<'subtitles' | 'markdown' | 'images' | 'html'>('subtitles');
+  const [activeTab, setActiveTab] = useState<'subtitles' | 'markdown' | 'images' | 'html' | 'videos' | 'audio' | 'source'>('subtitles');
   const [isDragging, setIsDragging] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [tasks, setTasks] = useState<TaskOverview[]>([]);
+
+  // Upload options (managed here or passed to UploadForm, keeping top-level state is okay for easy pass down)
+  const [asrEngine, setAsrEngine] = useState("funasr");
+  const [extractClips, setExtractClips] = useState(false);
+  const [addOverlay, setAddOverlay] = useState(false);
+  const [generateArticle, setGenerateArticle] = useState(true);
+  const [generateImages, setGenerateImages] = useState(true);
+  const [generateHtml, setGenerateHtml] = useState(true);
+  const [customPrompt, setCustomPrompt] = useState("");
+
+  const [llmSettings, setLlmSettings] = useState<LLMSettings>({ apiKey: '', baseUrl: '', model: '' });
+
+  const loadTasks = async () => {
+    try {
+      const fetchedTasks = await fetchTasks();
+      setTasks(fetchedTasks);
+    } catch (err) {
+      console.error("Failed to load tasks", err);
+    }
+  };
+
+  useEffect(() => {
+    loadTasks();
+  }, []);
+
+  const selectTask = async (id: string) => {
+    setTaskId(id);
+    setFile(null); // Clear pending upload
+    setStatus({ progress: 1, desc: '加载中...', state: 'processing' });
+    try {
+      const currentStatus = await pollStatus(id);
+      setStatus(currentStatus);
+      if (currentStatus.state === 'completed') {
+        const finalResults = await fetchResults(id);
+        setResults(finalResults);
+      } else {
+        setResults(null);
+      }
+    } catch (err) {
+      console.error(err);
+      setStatus({ progress: 0, desc: '无法加载任务状态', state: 'error' });
+    }
+  };
 
   useEffect(() => {
     let pollInterval: number;
@@ -26,8 +73,10 @@ function App() {
           clearInterval(pollInterval);
           const finalResults = await fetchResults(taskId);
           setResults(finalResults);
+          loadTasks(); // refresh task list
         } else if (currentStatus.state === 'error') {
           clearInterval(pollInterval);
+          loadTasks(); // refresh task list
         }
       } catch (err) {
         console.error('Failed to poll status:', err);
@@ -41,187 +90,124 @@ function App() {
     return () => clearInterval(pollInterval);
   }, [taskId, status?.state]);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setFile(e.target.files[0]);
-    }
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      const droppedFile = e.dataTransfer.files[0];
-      if (droppedFile.type.startsWith('video/')) {
-        setFile(droppedFile);
-      } else {
-        alert("Please upload a video file.");
-      }
-    }
-  };
-
   const handleUpload = async () => {
     if (!file) return;
     try {
       setStatus({ progress: 0, desc: '上传中...', state: 'processing' });
       setResults(null);
 
-      const newTaskId = await uploadVideo(file);
+      const options: UploadOptions = {
+        asrEngine,
+        extractClips,
+        addOverlay,
+        generateArticle,
+        generateImages,
+        generateHtml,
+        customPrompt,
+        llmApiKey: llmSettings.apiKey,
+        llmBaseUrl: llmSettings.baseUrl,
+        llmModel: llmSettings.model
+      };
+
+      const newTaskId = await uploadVideo(file, options);
       setTaskId(newTaskId);
+      loadTasks();
     } catch (err) {
       console.error(err);
       setStatus({ progress: 0, desc: '上传失败', state: 'error' });
     }
   };
 
+  const resetToUpload = () => {
+    setFile(null);
+    setTaskId(null);
+    setResults(null);
+    setStatus(null);
+  };
+
   return (
-    <div className="app-container">
-      <header className="header">
-        <h1>Clip2Post</h1>
-        <p>AI Video to Article Generator</p>
-      </header>
+    <div className="layout-container">
+      <Sidebar
+        tasks={tasks}
+        taskId={taskId}
+        onSelectTask={selectTask}
+        onNewVideo={resetToUpload}
+      />
 
-      <div className="glass-panel">
-        {!taskId || status?.state === 'error' ? (
-          <>
-            <div
-              className={classNames('upload-zone', { 'border-accent-primary transform -translate-y-1': isDragging })}
-              onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-              onDragLeave={() => setIsDragging(false)}
-              onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <Upload className="upload-icon mx-auto" />
-              <div className="upload-text">
-                {file ? file.name : 'Click or drag video here'}
-              </div>
-              <div className="upload-hint">MP4, MOV, MKV up to 500MB</div>
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileChange}
-                accept="video/*"
-                className="hidden"
-                style={{ display: 'none' }}
+      <div className="main-content">
+        <div className="app-container">
+          <header className="header">
+            <h1>Clip2Post</h1>
+            <p>AI Video Configuration & Processing</p>
+          </header>
+
+          <div className="glass-panel">
+            {!taskId || status?.state === 'error' ? (
+              <UploadForm
+                file={file}
+                isDragging={isDragging}
+                onFileSelect={(file) => {
+                  setFile(file);
+                  setTaskId(null);
+                  setResults(null);
+                  setStatus(null);
+                }}
+                onDragStateChange={setIsDragging}
+                asrEngine={asrEngine}
+                onAsrChange={setAsrEngine}
+                options={{
+                  extractClips,
+                  addOverlay,
+                  generateArticle,
+                  generateImages,
+                  generateHtml,
+                  customPrompt
+                }}
+                onOptionsChange={(opts) => {
+                  setExtractClips(opts.extractClips);
+                  setAddOverlay(opts.addOverlay);
+                  setGenerateArticle(opts.generateArticle);
+                  setGenerateImages(opts.generateImages);
+                  setGenerateHtml(opts.generateHtml);
+                  setCustomPrompt(opts.customPrompt);
+                }}
+                onLlmSettingsChange={setLlmSettings}
+                onUpload={handleUpload}
+                disableUpload={!file}
+                isErrorState={status?.state === 'error'}
               />
-            </div>
-
-            <div style={{ marginTop: '2rem', textAlign: 'center' }}>
-              <button
-                className="btn-primary"
-                onClick={handleUpload}
-                disabled={!file}
-              >
-                Start Processing
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M5 12h14M12 5l7 7-7 7" />
-                </svg>
-              </button>
-            </div>
-          </>
-        ) : (
-          <div className="progress-container">
-            <div className="progress-header">
-              <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                {status?.state === 'processing' && <Loader2 className="spinner" size={18} />}
-                {status?.state === 'completed' && <CheckCircle2 size={18} color="var(--success-color)" />}
-                {(status?.state as any) === 'error' && <AlertCircle size={18} color="#ef4444" />}
-                {status?.desc || 'Processing...'}
-              </span>
-              <span>{Math.round((status?.progress || 0) * 100)}%</span>
-            </div>
-            <div className="progress-track">
-              <div
-                className="progress-fill"
-                style={{ width: `${(status?.progress || 0) * 100}%` }}
-              ></div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {results && (
-        <div className="tabs-container">
-          <div className="tabs-list">
-            <button
-              className={classNames('tab-btn', { active: activeTab === 'subtitles' })}
-              onClick={() => setActiveTab('subtitles')}
-            >
-              <FileText size={16} style={{ display: 'inline', marginRight: '6px' }} />
-              Subtitles
-            </button>
-            <button
-              className={classNames('tab-btn', { active: activeTab === 'markdown' })}
-              onClick={() => setActiveTab('markdown')}
-            >
-              <FileText size={16} style={{ display: 'inline', marginRight: '6px' }} />
-              AI Article
-            </button>
-            <button
-              className={classNames('tab-btn', { active: activeTab === 'images' })}
-              onClick={() => setActiveTab('images')}
-            >
-              <ImageIcon size={16} style={{ display: 'inline', marginRight: '6px' }} />
-              Screenshots
-            </button>
-            <button
-              className={classNames('tab-btn', { active: activeTab === 'html' })}
-              onClick={() => setActiveTab('html')}
-            >
-              <Layout size={16} style={{ display: 'inline', marginRight: '6px' }} />
-              Final Layout
-            </button>
-          </div>
-
-          <div className="tab-content">
-            {activeTab === 'subtitles' && (
-              <textarea
-                className="textarea-styled"
-                readOnly
-                value={results.subtitles || 'No subtitles found.'}
-              />
-            )}
-
-            {activeTab === 'markdown' && (
-              <textarea
-                className="textarea-styled"
-                readOnly
-                value={results.markdown || 'No article generated.'}
-              />
-            )}
-
-            {activeTab === 'images' && (
-              <div className="gallery-grid">
-                {results.images && results.images.length > 0 ? (
-                  results.images.map((img, i) => (
-                    <div key={i} className="gallery-item">
-                      <img src={getAssetUrl(img)} alt={`Screenshot ${i + 1}`} />
-                    </div>
-                  ))
-                ) : (
-                  <p>No images extracted.</p>
-                )}
-              </div>
-            )}
-
-            {activeTab === 'html' && (
-              <div className="iframe-container">
-                {results.html_url ? (
-                  <iframe
-                    src={getAssetUrl(results.html_url)}
-                    width="100%"
-                    height="100%"
-                    style={{ border: 'none', borderRadius: '8px' }}
-                    title="Article Preview"
-                  />
-                ) : (
-                  <p style={{ padding: '1rem', color: 'black' }}>Preview not available.</p>
-                )}
+            ) : (
+              <div className="progress-container">
+                <div className="progress-header">
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    {status?.state === 'processing' && <Loader2 className="spinner" size={18} />}
+                    {status?.state === 'completed' && <CheckCircle2 size={18} color="var(--success-color)" />}
+                    {status?.state === 'error' && <AlertCircle size={18} color="#ef4444" />}
+                    <span style={{ color: status?.state === 'error' ? '#ef4444' : (status?.state === 'completed' ? 'var(--success-color)' : 'inherit') }}>
+                      {status?.desc || 'Processing...'}
+                    </span>
+                  </span>
+                  <span>{Math.round((status?.progress || 0) * 100)}%</span>
+                </div>
+                <div className="progress-track">
+                  <div
+                    className="progress-fill"
+                    style={{ width: `${(status?.progress || 0) * 100}%` }}
+                  ></div>
+                </div>
               </div>
             )}
           </div>
         </div>
-      )}
+
+        {results && (
+          <ResultsDisplay
+            results={results}
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+          />
+        )}
+      </div>
     </div>
   );
 }

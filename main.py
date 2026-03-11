@@ -2,7 +2,7 @@ import os
 import shutil
 import asyncio
 from pathlib import Path
-from fastapi import FastAPI, UploadFile, File, BackgroundTasks
+from fastapi import FastAPI, UploadFile, File, BackgroundTasks, Form
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -15,9 +15,8 @@ from llm.generator import ArticleGenerator
 from screenshot.extractor import ScreenshotExtractor
 from utils.html_builder import build_html_article
 
-# Initialize NLP models
-asr_model = ASRRecognizer()
-llm_model = ArticleGenerator()
+# Initialize NLP models (global ones that don't need dynamic config)
+asr_model_global = ASRRecognizer() # Just for reference, not always used directly now
 screenshot_tool = ScreenshotExtractor()
 
 app = FastAPI(title="Clip2Post V2 API")
@@ -34,7 +33,20 @@ app.add_middleware(
 # Mount tasks directory for static file access (images, html)
 app.mount("/tasks", StaticFiles(directory=str(TASKS_DIR)), name="tasks")
 
-def process_video_pipeline(task_id: str, video_path: Path):
+def process_video_pipeline(
+    task_id: str, 
+    video_path: Path, 
+    asr_engine: str = "funasr",
+    extract_clips_flag: bool = False, 
+    add_overlay_flag: bool = False,
+    generate_article_flag: bool = True, 
+    generate_images_flag: bool = True,
+    generate_html_flag: bool = True,
+    custom_prompt: str = "",
+    llm_api_key: str = "",
+    llm_base_url: str = "",
+    llm_model_name: str = ""
+):
     """Background task to process the video step-by-step."""
     task_manager = TaskManager(task_id=task_id)
     
@@ -45,25 +57,67 @@ def process_video_pipeline(task_id: str, video_path: Path):
         extract_audio(video_path, audio_path)
         
         # Step 3: ASR (Subtitle Generation)
-        task_manager.update_status(0.4, "正在识别字幕...", "processing")
+        task_manager.update_status(0.4, f"正在识别字幕 ({asr_engine})...", "processing")
         subtitle_path = task_manager.get_dir("subtitle") / "subtitle.txt"
-        asr_model.recognize(audio_path, subtitle_path)
         
+        # Load the selected ASR model locally (replacing the global instance for this request)
+        task_asr_model = ASRRecognizer(asr_type=asr_engine)
+        task_asr_model.recognize(audio_path, subtitle_path)
+        
+        # Optional: Extract Clips
+        if extract_clips_flag:
+            task_manager.update_status(0.5, "AI 正在提取视频片段...", "processing")
+            from llm.clip_generator import ClipGenerator
+            from video.processor import cut_video_segments
+            import json
+            clip_generator = ClipGenerator()
+            clips_json_path = task_manager.get_dir("ai") / "clips.json"
+            clip_generator.generate(subtitle_path, clips_json_path)
+            
+            with open(clips_json_path, 'r', encoding='utf-8') as f:
+                clips_data = json.load(f)
+                
+            videos_output_dir = task_manager.get_dir("videos")
+            cut_video_segments(video_path, clips_data, videos_output_dir, add_overlay=add_overlay_flag)
+
         # Step 4: LLM Generation
-        task_manager.update_status(0.6, "AI 正在生成文章与图片时间点...", "processing")
         article_path = task_manager.get_dir("ai") / "article.md"
         image_json_path = task_manager.get_dir("ai") / "image.json"
-        llm_model.generate(subtitle_path, article_path, image_json_path)
         
+        if generate_article_flag:
+            task_manager.update_status(0.6, "AI 正在生成文章与图片时间点...", "processing")
+            # Initialize dynamic LLM generator
+            llm_generator = ArticleGenerator(
+                api_key=llm_api_key if llm_api_key else None,
+                base_url=llm_base_url if llm_base_url else None,
+                model=llm_model_name if llm_model_name else None
+            )
+            llm_generator.generate(subtitle_path, article_path, image_json_path, custom_prompt=custom_prompt)
+        else:
+            task_manager.update_status(0.6, "跳过生成文章...", "processing")
+            
         # Step 5: Screen Capture
-        task_manager.update_status(0.8, "正在自动截图...", "processing")
-        images_dir = task_manager.get_dir("images")
-        images_data = screenshot_tool.extract(video_path, image_json_path, images_dir)
-        
+        images_data = []
+        if generate_images_flag:
+            if image_json_path.exists():
+                task_manager.update_status(0.8, "正在自动截图...", "processing")
+                images_dir = task_manager.get_dir("images")
+                images_data = screenshot_tool.extract(video_path, image_json_path, images_dir)
+            else:
+                task_manager.update_status(0.8, "无法截图：找不到图片时间点数据", "processing")
+        else:
+            task_manager.update_status(0.8, "跳过自动截图...", "processing")
+            
         # Step 6: HTML Generation
-        task_manager.update_status(0.9, "正在排版最终文章...", "processing")
-        html_path = task_manager.get_dir("article") / "article.html"
-        build_html_article(article_path, images_data, html_path)
+        if generate_html_flag:
+            if article_path.exists():
+                task_manager.update_status(0.9, "正在排版最终文章...", "processing")
+                html_path = task_manager.get_dir("article") / "article.html"
+                build_html_article(article_path, images_data, html_path)
+            else:
+                task_manager.update_status(0.9, "无法排版：找不到文章内容", "processing")
+        else:
+            task_manager.update_status(0.9, "跳过文章排版...", "processing")
         
         task_manager.update_status(1.0, "处理完成！", "completed")
 
@@ -73,7 +127,20 @@ def process_video_pipeline(task_id: str, video_path: Path):
         print(traceback.format_exc())
 
 @app.post("/api/upload")
-async def upload_video(background_tasks: BackgroundTasks, file: UploadFile = File(...)):
+async def upload_video(
+    background_tasks: BackgroundTasks, 
+    file: UploadFile = File(...),
+    asr_engine: str = Form("funasr"),
+    extract_clips: bool = Form(False),
+    add_overlay: bool = Form(False),
+    generate_article: bool = Form(True),
+    generate_images: bool = Form(True),
+    generate_html: bool = Form(True),
+    custom_prompt: str = Form(""),
+    llm_api_key: str = Form(""),
+    llm_base_url: str = Form(""),
+    llm_model: str = Form("")
+):
     """Upload video file and start background processing."""
     task_manager = TaskManager()
     task_id = task_manager.task_id
@@ -88,9 +155,45 @@ async def upload_video(background_tasks: BackgroundTasks, file: UploadFile = Fil
     task_manager.update_status(0.1, "文件上传成功，初始化处理...", "processing")
     
     # Start background task
-    background_tasks.add_task(process_video_pipeline, task_id, video_path)
+    background_tasks.add_task(
+        process_video_pipeline, 
+        task_id, 
+        video_path,
+        asr_engine,
+        extract_clips,
+        add_overlay,
+        generate_article,
+        generate_images,
+        generate_html,
+        custom_prompt,
+        llm_api_key,
+        llm_base_url,
+        llm_model
+    )
     
     return {"task_id": task_id, "message": "Task started."}
+
+@app.get("/api/tasks")
+async def get_tasks():
+    """List all historical tasks."""
+    if not TASKS_DIR.exists():
+        return {"tasks": []}
+        
+    tasks_list = []
+    # Sort by task_id descending (newest first, since they are timestamped)
+    for d in sorted(TASKS_DIR.iterdir(), key=lambda x: x.name, reverse=True):
+        if d.is_dir():
+            status_file = d / "status.json"
+            if status_file.exists():
+                import json
+                try:
+                    with open(status_file, "r", encoding="utf-8") as f:
+                        status = json.load(f)
+                        status["task_id"] = d.name
+                        tasks_list.append(status)
+                except Exception:
+                    pass
+    return {"tasks": tasks_list}
 
 @app.get("/api/status/{task_id}")
 async def get_status(task_id: str):
@@ -125,13 +228,29 @@ async def get_results(task_id: str):
     images_dir = task_manager.get_dir("images")
     images_urls = [f"/tasks/{task_id}/images/{img.name}" for img in sorted(images_dir.glob("*.jpg"))] if images_dir.exists() else []
 
-    html_url = f"/tasks/{task_id}/article/article.html"
+    html_path = task_manager.get_dir("article") / "article.html"
+    html_url = f"/tasks/{task_id}/article/article.html" if html_path.exists() else None
+    
+    # Get video clips
+    videos_dir = task_manager.get_dir("videos")
+    video_clips_urls = [f"/tasks/{task_id}/videos/{vid.name}" for vid in sorted(videos_dir.glob("*.mp4"))] if videos_dir.exists() else []
+    
+    # Get audio
+    audio_path = task_manager.get_dir("audio") / "audio.wav"
+    audio_url = f"/tasks/{task_id}/audio/audio.wav" if audio_path.exists() else None
+    
+    # Get source video
+    source_video_path = task_manager.get_dir("video") / "source.mp4"
+    source_video_url = f"/tasks/{task_id}/video/source.mp4" if source_video_path.exists() else None
     
     return {
         "subtitles": subtitle_content,
         "markdown": article_content,
         "images": images_urls,
-        "html_url": html_url
+        "html_url": html_url,
+        "video_clips": video_clips_urls,
+        "audio_url": audio_url,
+        "source_video": source_video_url
     }
 
 if __name__ == "__main__":
