@@ -144,15 +144,15 @@ export const UploadForm: React.FC<UploadFormProps> = ({
             </div>
 
             <div className="upload-options">
-                <h3 style={{ marginBottom: '1rem', fontSize: '1.1rem' }}>Processing Options</h3>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                    <h3 style={{ fontSize: '1.2rem', margin: 0 }}>Processing Configuration</h3>
+                </div>
 
                 <SettingsPanel onSettingsChange={onLlmSettingsChange} />
 
-                <div className="form-group" style={{ marginBottom: '1.5rem', background: 'rgba(0,0,0,0.2)', padding: '1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                    <label style={{ display: 'block', marginBottom: '0.8rem', color: 'var(--text-secondary)' }}>
-                        0. 语音识别引擎 (ASR Engine)
-                    </label>
-                    <div className="radio-group" style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                <div className="option-section">
+                    <h4 className="section-title">🎙️ Audio & Speech (ASR)</h4>
+                    <div className="radio-group" style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', marginTop: '0.5rem' }}>
                         <label className="radio-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
                             <input
                                 type="radio"
@@ -162,9 +162,9 @@ export const UploadForm: React.FC<UploadFormProps> = ({
                                 onChange={() => onAsrChange("funasr")}
                                 style={{ accentColor: 'var(--accent-primary)', width: '16px', height: '16px' }}
                             />
-                            <span>FunASR (阿里开源, 快且准)</span>
+                            <span><strong>FunASR</strong> (阿里开源, 快且准)</span>
                         </label>
-                        <label className="radio-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                        <label className="radio-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: 'var(--text-secondary)' }}>
                             <input
                                 type="radio"
                                 name="asrEngine"
@@ -175,7 +175,7 @@ export const UploadForm: React.FC<UploadFormProps> = ({
                             />
                             <span>Faster-Whisper (英文支持较好)</span>
                         </label>
-                        <label className="radio-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                        <label className="radio-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: 'var(--text-secondary)' }}>
                             <input
                                 type="radio"
                                 name="asrEngine"
@@ -189,64 +189,73 @@ export const UploadForm: React.FC<UploadFormProps> = ({
                     </div>
                 </div>
 
-                <label className="checkbox-group">
-                    <input
-                        type="checkbox"
-                        checked={options.extractClips}
-                        onChange={e => updateOption('extractClips', e.target.checked)}
-                    />
-                    <span>1. 是否切割视频片段 (Extract Highlight Video Clips)</span>
-                </label>
-
-                {options.extractClips && (
-                    <label className="checkbox-group" style={{ marginLeft: '2rem' }}>
+                <div className="option-section">
+                    <h4 className="section-title">✂️ Video Processing</h4>
+                    <label className="checkbox-group">
                         <input
                             type="checkbox"
-                            checked={options.addOverlay}
-                            onChange={e => updateOption('addOverlay', e.target.checked)}
+                            checked={options.extractClips}
+                            onChange={e => updateOption('extractClips', e.target.checked)}
                         />
-                        <span>2. 是否添加总结文案字幕 (Add Summary Overlay to Clips)</span>
+                        <span><strong>片段提取</strong> (Extract Highlight Clips)</span>
                     </label>
-                )}
 
-                <label className="checkbox-group">
-                    <input
-                        type="checkbox"
-                        checked={options.generateArticle}
-                        onChange={e => updateOption('generateArticle', e.target.checked)}
-                    />
-                    <span>3. 是否生成文章 (Generate AI Article)</span>
-                </label>
+                    {options.extractClips && (
+                        <label className="checkbox-group nested">
+                            <input
+                                type="checkbox"
+                                checked={options.addOverlay}
+                                onChange={e => updateOption('addOverlay', e.target.checked)}
+                            />
+                            <span>添加总结文案字幕 (Add Summary Overlay to Clips)</span>
+                        </label>
+                    )}
+                </div>
 
-                {options.generateArticle && (
-                    <div className="prompt-group" style={{ marginLeft: '2rem', marginBottom: '1rem', marginTop: 0 }}>
-                        <label>可选：文章生成提示词 (Custom LLM Prompt)</label>
-                        <textarea
-                            className="prompt-textarea"
-                            placeholder="e.g. Write the article in a comedic tone, focus on the tutorial aspects..."
-                            value={options.customPrompt}
-                            onChange={e => updateOption('customPrompt', e.target.value)}
+                <div className="option-section">
+                    <h4 className="section-title">📝 Article Generation</h4>
+                    <label className="checkbox-group">
+                        <input
+                            type="checkbox"
+                            checked={options.generateArticle}
+                            onChange={e => updateOption('generateArticle', e.target.checked)}
                         />
-                    </div>
-                )}
+                        <span><strong>AI 文章生成</strong> (Generate Markdown Article)</span>
+                    </label>
 
-                <label className="checkbox-group">
-                    <input
-                        type="checkbox"
-                        checked={options.generateImages}
-                        onChange={e => updateOption('generateImages', e.target.checked)}
-                    />
-                    <span>4. 是否生成视频图片 (Generate Screenshots)</span>
-                </label>
+                    {options.generateArticle && (
+                        <div className="prompt-group nested">
+                            <label>自定义提示词 (Optional Custom Prompt)</label>
+                            <textarea
+                                className="prompt-textarea"
+                                placeholder="e.g. Write the article in a comedic tone, focus on the tutorial aspects..."
+                                value={options.customPrompt}
+                                onChange={e => updateOption('customPrompt', e.target.value)}
+                            />
+                        </div>
+                    )}
+                </div>
 
-                <label className="checkbox-group">
-                    <input
-                        type="checkbox"
-                        checked={options.generateHtml}
-                        onChange={e => updateOption('generateHtml', e.target.checked)}
-                    />
-                    <span>5. 是否转换html (Generate HTML Layout)</span>
-                </label>
+                <div className="option-section">
+                    <h4 className="section-title">🖼️ Media & Export</h4>
+                    <label className="checkbox-group">
+                        <input
+                            type="checkbox"
+                            checked={options.generateImages}
+                            onChange={e => updateOption('generateImages', e.target.checked)}
+                        />
+                        <span><strong>提取视频截图</strong> (Capture Screenshots)</span>
+                    </label>
+
+                    <label className="checkbox-group">
+                        <input
+                            type="checkbox"
+                            checked={options.generateHtml}
+                            onChange={e => updateOption('generateHtml', e.target.checked)}
+                        />
+                        <span><strong>构建 HTML 网页</strong> (Generate Final HTML Layout)</span>
+                    </label>
+                </div>
             </div>
 
             <div style={{ marginTop: '2rem', textAlign: 'center' }}>
