@@ -10,6 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from config.settings import TASKS_DIR
 from utils.task import TaskManager
 from video.processor import extract_audio
+from video.downloader import VideoDownloader
 from asr.recognizer import ASRRecognizer
 from llm.generator import ArticleGenerator
 from screenshot.extractor import ScreenshotExtractor
@@ -36,6 +37,7 @@ app.mount("/tasks", StaticFiles(directory=str(TASKS_DIR)), name="tasks")
 def process_video_pipeline(
     task_id: str, 
     video_path: Path, 
+    video_url: str = "",
     asr_engine: str = "funasr",
     extract_clips_flag: bool = False, 
     add_overlay_flag: bool = False,
@@ -51,6 +53,14 @@ def process_video_pipeline(
     task_manager = TaskManager(task_id=task_id)
     
     try:
+        # Step 1: Download from URL if provided and file not already present
+        if video_url and not video_path.exists():
+            task_manager.update_status(0.1, "正在通过链接下载视频...", "processing")
+            VideoDownloader.download(video_url, video_path)
+
+        if not video_path.exists():
+            raise FileNotFoundError("没有找到可用的视频文件，请上传文件或提供有效的视频链接。")
+
         # Step 2: Audio Extraction
         task_manager.update_status(0.2, "正在提取音频...", "processing")
         audio_path = task_manager.get_dir("audio") / "audio.wav"
@@ -129,7 +139,8 @@ def process_video_pipeline(
 @app.post("/api/upload")
 async def upload_video(
     background_tasks: BackgroundTasks, 
-    file: UploadFile = File(...),
+    file: UploadFile = File(None),
+    video_url: str = Form(""),
     asr_engine: str = Form("funasr"),
     extract_clips: bool = Form(False),
     add_overlay: bool = Form(False),
@@ -141,24 +152,31 @@ async def upload_video(
     llm_base_url: str = Form(""),
     llm_model: str = Form("")
 ):
-    """Upload video file and start background processing."""
+    """Upload video file or provide URL to start background processing."""
+    
+    if not file and not video_url:
+        return JSONResponse(status_code=400, content={"error": "请提供视频文件或有效的视频链接"})
+        
     task_manager = TaskManager()
     task_id = task_manager.task_id
     
-    # Save uploaded file
+    # Save uploaded file if provided
     video_dir = task_manager.get_dir("video")
     video_path = video_dir / "source.mp4"
     
-    with open(video_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-        
-    task_manager.update_status(0.1, "文件上传成功，初始化处理...", "processing")
+    if file:
+        with open(video_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+            
+    status_msg = "初始化处理..." if file else "接收到链接，初始化下载任务..."
+    task_manager.update_status(0.05, status_msg, "processing")
     
     # Start background task
     background_tasks.add_task(
         process_video_pipeline, 
         task_id, 
         video_path,
+        video_url,
         asr_engine,
         extract_clips,
         add_overlay,

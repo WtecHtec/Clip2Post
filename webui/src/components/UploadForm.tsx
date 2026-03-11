@@ -6,6 +6,8 @@ import type { LLMSettings } from './SettingsPanel';
 
 interface UploadFormProps {
     file: File | null;
+    videoUrl: string;
+    onVideoUrlChange: (url: string) => void;
     isDragging: boolean;
     onFileSelect: (file: File | null) => void;
     onDragStateChange: (state: boolean) => void;
@@ -36,6 +38,8 @@ interface UploadFormProps {
 
 export const UploadForm: React.FC<UploadFormProps> = ({
     file,
+    videoUrl,
+    onVideoUrlChange,
     isDragging,
     onFileSelect,
     onDragStateChange,
@@ -75,26 +79,68 @@ export const UploadForm: React.FC<UploadFormProps> = ({
 
     return (
         <>
-            <div
-                className={classNames('upload-zone', { 'border-accent-primary transform -translate-y-1': isDragging })}
-                onDragOver={(e) => { e.preventDefault(); onDragStateChange(true); }}
-                onDragLeave={() => onDragStateChange(false)}
-                onDrop={handleDrop}
-                onClick={() => fileInputRef.current?.click()}
-            >
-                <Upload className="upload-icon mx-auto" />
-                <div className="upload-text">
-                    {file ? file.name : 'Click or drag video here'}
+            <div style={{ marginBottom: '1.5rem' }}>
+                <h3 style={{ marginBottom: '1rem', fontSize: '1.1rem' }}>Video Source</h3>
+
+                <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
+                    <div style={{ flex: 1 }}>
+                        <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                            Option A: Enter Video URL
+                        </label>
+                        <input
+                            type="text"
+                            placeholder="e.g. https://www.youtube.com/watch?v=..."
+                            value={videoUrl}
+                            onChange={(e) => onVideoUrlChange(e.target.value)}
+                            style={{
+                                width: '100%',
+                                padding: '0.75rem',
+                                borderRadius: '8px',
+                                border: '1px solid var(--border-color)',
+                                backgroundColor: 'rgba(0,0,0,0.3)',
+                                color: 'var(--text-primary)',
+                                outline: 'none'
+                            }}
+                            disabled={file !== null}
+                        />
+                    </div>
                 </div>
-                <div className="upload-hint">MP4, MOV, MKV up to 500MB</div>
-                <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleFileChange}
-                    accept="video/*"
-                    className="hidden"
-                    style={{ display: 'none' }}
-                />
+
+                <div
+                    style={{ position: 'relative' }}
+                    className={classNames('upload-zone', {
+                        'border-accent-primary transform -translate-y-1': isDragging,
+                        'opacity-50 pointer-events-none': videoUrl.length > 0
+                    })}
+                    onDragOver={(e) => { e.preventDefault(); if (!videoUrl) onDragStateChange(true); }}
+                    onDragLeave={() => onDragStateChange(false)}
+                    onDrop={handleDrop}
+                    onClick={() => { if (!videoUrl) fileInputRef.current?.click(); }}
+                >
+                    <Upload className="upload-icon mx-auto" />
+                    <div className="upload-text">
+                        {file ? file.name : (videoUrl ? 'URL provided (clear to upload file)' : 'Option B: Click or drag local video here')}
+                    </div>
+                    <div className="upload-hint">MP4, MOV, MKV up to 500MB</div>
+                    <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleFileChange}
+                        accept="video/*"
+                        className="hidden"
+                        style={{ display: 'none' }}
+                        disabled={videoUrl.length > 0}
+                    />
+
+                    {file && (
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onFileSelect(null); }}
+                            style={{ marginTop: '1rem', padding: '0.5rem 1rem', background: 'rgba(239, 68, 68, 0.2)', color: '#ef4444', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                        >
+                            Remove File
+                        </button>
+                    )}
+                </div>
             </div>
 
             <div className="upload-options">

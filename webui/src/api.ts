@@ -22,6 +22,7 @@ export interface TaskOverview extends TaskStatus {
 }
 
 export interface UploadOptions {
+  videoUrl?: string;
   asrEngine: string;
   extractClips: boolean;
   addOverlay: boolean;
@@ -34,10 +35,15 @@ export interface UploadOptions {
   llmModel: string;
 }
 
-export const uploadVideo = async (file: File, options?: UploadOptions): Promise<string> => {
+export const uploadVideo = async (options: UploadOptions, file?: File | null): Promise<string> => {
   const formData = new FormData();
-  formData.append('file', file);
+  if (file) {
+    formData.append('file', file);
+  }
   if (options) {
+    if (options.videoUrl) {
+      formData.append('video_url', options.videoUrl);
+    }
     formData.append('asr_engine', options.asrEngine);
     formData.append('extract_clips', String(options.extractClips));
     formData.append('add_overlay', String(options.addOverlay));

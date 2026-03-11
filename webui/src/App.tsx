@@ -9,13 +9,14 @@ import { ResultsDisplay } from './components/ResultsDisplay';
 import type { LLMSettings } from './components/SettingsPanel';
 
 function App() {
+  const [tasks, setTasks] = useState<TaskOverview[]>([]);
   const [file, setFile] = useState<File | null>(null);
+  const [videoUrl, setVideoUrl] = useState<string>('');
   const [taskId, setTaskId] = useState<string | null>(null);
   const [status, setStatus] = useState<TaskStatus | any>(null);
   const [results, setResults] = useState<TaskResults | null>(null);
   const [activeTab, setActiveTab] = useState<'subtitles' | 'markdown' | 'images' | 'html' | 'videos' | 'audio' | 'source'>('subtitles');
   const [isDragging, setIsDragging] = useState(false);
-  const [tasks, setTasks] = useState<TaskOverview[]>([]);
 
   // Upload options (managed here or passed to UploadForm, keeping top-level state is okay for easy pass down)
   const [asrEngine, setAsrEngine] = useState("funasr");
@@ -44,6 +45,7 @@ function App() {
   const selectTask = async (id: string) => {
     setTaskId(id);
     setFile(null); // Clear pending upload
+    setVideoUrl(''); // Clear pending URL
     setStatus({ progress: 1, desc: '加载中...', state: 'processing' });
     try {
       const currentStatus = await pollStatus(id);
@@ -91,12 +93,14 @@ function App() {
   }, [taskId, status?.state]);
 
   const handleUpload = async () => {
-    if (!file) return;
+    if (!file && !videoUrl) return;
+
     try {
-      setStatus({ progress: 0, desc: '上传中...', state: 'processing' });
+      setStatus({ progress: 0.1, desc: '初始化上传...', state: 'pending' });
       setResults(null);
 
       const options: UploadOptions = {
+        videoUrl: videoUrl || undefined,
         asrEngine,
         extractClips,
         addOverlay,
@@ -109,7 +113,7 @@ function App() {
         llmModel: llmSettings.model
       };
 
-      const newTaskId = await uploadVideo(file, options);
+      const newTaskId = await uploadVideo(options, file);
       setTaskId(newTaskId);
       loadTasks();
     } catch (err) {
@@ -120,6 +124,7 @@ function App() {
 
   const resetToUpload = () => {
     setFile(null);
+    setVideoUrl('');
     setTaskId(null);
     setResults(null);
     setStatus(null);
@@ -145,9 +150,12 @@ function App() {
             {!taskId || status?.state === 'error' ? (
               <UploadForm
                 file={file}
+                videoUrl={videoUrl}
+                onVideoUrlChange={setVideoUrl}
                 isDragging={isDragging}
                 onFileSelect={(file) => {
                   setFile(file);
+                  if (file) setVideoUrl(''); // clear URL if file is selected
                   setTaskId(null);
                   setResults(null);
                   setStatus(null);
@@ -173,7 +181,7 @@ function App() {
                 }}
                 onLlmSettingsChange={setLlmSettings}
                 onUpload={handleUpload}
-                disableUpload={!file}
+                disableUpload={!file && !videoUrl}
                 isErrorState={status?.state === 'error'}
               />
             ) : (

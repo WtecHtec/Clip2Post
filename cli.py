@@ -6,6 +6,7 @@ from pathlib import Path
 
 from utils.task import TaskManager
 from video.processor import extract_audio
+from video.downloader import VideoDownloader
 from asr.recognizer import ASRRecognizer
 from llm.generator import ArticleGenerator
 from screenshot.extractor import ScreenshotExtractor
@@ -13,7 +14,11 @@ from utils.html_builder import build_html_article
 
 def main():
     parser = argparse.ArgumentParser(description="Clip2Post - Video to Article CLI")
-    parser.add_argument("--video", "-v", required=True, type=str, help="Path to the input video file (e.g., .mp4, .mov)")
+    
+    source_group = parser.add_mutually_exclusive_group(required=True)
+    source_group.add_argument("--video", "-v", type=str, help="Path to the input video file (e.g., .mp4, .mov)")
+    source_group.add_argument("--url", "-u", type=str, help="URL of the video to download (e.g., YouTube, X, TikTok)")
+    
     parser.add_argument("--asr", type=str, choices=["funasr", "faster-whisper", "whisperx"], help="ASR engine to use")
     parser.add_argument("--transcribe-only", action="store_true", help="Only extract audio and generate subtitles/raw text")
     parser.add_argument("--extract-clips", action="store_true", help="Extract high-value video clips based on dialogue content")
@@ -21,11 +26,13 @@ def main():
     parser.add_argument("--screenshots-only", type=str, help="Path to image.json to only extract screenshots and build HTML")
     args = parser.parse_args()
 
-    video_input_path = Path(args.video).resolve()
-    
-    if not video_input_path.exists():
-        print(f"Error: Video file not found at {video_input_path}")
-        sys.exit(1)
+    # Determine video source and validate
+    video_input_path = None
+    if args.video:
+        video_input_path = Path(args.video).resolve()
+        if not video_input_path.exists():
+            print(f"Error: Video file not found at {video_input_path}")
+            sys.exit(1)
 
     print("--- Starting Clip2Post CLI processing ---")
     
@@ -34,9 +41,19 @@ def main():
     task_id = task_manager.task_id
     
     target_video_path = task_manager.get_dir("video") / "source.mp4"
-    if not args.screenshots_only or not target_video_path.exists():
+    
+    if args.url:
+        print("[0/6] Downloading video from URL...")
+        try:
+            VideoDownloader.download(args.url, target_video_path)
+            print(f"      Downloaded to: {target_video_path}")
+        except Exception as e:
+            print(f"Error downloading video: {e}")
+            sys.exit(1)
+    elif video_input_path and (not args.screenshots_only or not target_video_path.exists()):
         print(f"      Initializing Task directory for {video_input_path.name}...")
         shutil.copy(video_input_path, target_video_path)
+        
     print(f"      Task ID: {task_id}")
 
     try:
