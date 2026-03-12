@@ -16,3 +16,8 @@ markdown
 opencv-python
 pillow
 yt-dlp
+edge-tts
+kokoro-onnx
+onnxruntime
+soundfile
+scipy

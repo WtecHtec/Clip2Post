@@ -11,6 +11,9 @@ from asr.recognizer import ASRRecognizer
 from llm.generator import ArticleGenerator
 from screenshot.extractor import ScreenshotExtractor
 from utils.html_builder import build_html_article
+from tts.processor import run_tts_sync
+from tts.kokoro_processor import run_kokoro_tts_sync
+from video.remotion_renderer import run_remotion_render
 
 def main():
     parser = argparse.ArgumentParser(description="Clip2Post - Video to Article CLI")
@@ -18,7 +21,11 @@ def main():
     source_group = parser.add_mutually_exclusive_group(required=True)
     source_group.add_argument("--video", "-v", type=str, help="Path to the input video file (e.g., .mp4, .mov)")
     source_group.add_argument("--url", "-u", type=str, help="URL of the video to download (e.g., YouTube, X, TikTok)")
+    source_group.add_argument("--tts", type=str, help="Generate Audio + JSON from the provided text")
     
+    parser.add_argument("--tts-engine", type=str, choices=["edge", "kokoro"], default="edge", help="TTS engine to use (default: edge)")
+    parser.add_argument("--render", action="store_true", help="Render video using Remotion after TTS (requires --tts)")
+    parser.add_argument("--voice", type=str, help="Voice to use for TTS (defaults depend on engine)")
     parser.add_argument("--asr", type=str, choices=["funasr", "faster-whisper", "whisperx"], help="ASR engine to use")
     parser.add_argument("--transcribe-only", action="store_true", help="Only extract audio and generate subtitles/raw text")
     parser.add_argument("--extract-clips", action="store_true", help="Extract high-value video clips based on dialogue content")
@@ -40,6 +47,70 @@ def main():
     task_manager = TaskManager()
     task_id = task_manager.task_id
     
+    # Check if this is a TTS-only task
+    if args.tts:
+        print(f"[1/1] Generating TTS (Audio + JSON) via {args.tts_engine}...")
+        audio_dir = task_manager.get_dir("audio")
+        output_base = audio_dir / "tts_output"
+        try:
+            if args.tts_engine == "kokoro":
+                voice = args.voice or "af_heart"
+                audio_path, json_path = run_kokoro_tts_sync(args.tts, str(output_base), voice=voice)
+            else:
+                voice = args.voice or "zh-CN-XiaoxiaoNeural"
+                audio_path, json_path = run_tts_sync(args.tts, str(output_base), voice=voice)
+            
+            print(f"      Audio: {audio_path}")
+            print(f"      JSON: {json_path}")
+
+            if args.render:
+                print(f"[2/2] Rendering video via Remotion...")
+                # Prepare shuo.json for Remotion
+                with open(json_path, 'r', encoding='utf-8') as f:
+                    captions = json.load(f)
+                
+                # Copy audio to remotion/public for Remotion to access
+                remotion_public = Path(__file__).parent / "skills" / "remotion" / "public"
+                remotion_public.mkdir(parents=True, exist_ok=True)
+                
+                # Use correct extension so Remotion/Browser can play it
+                audio_ext = Path(audio_path).suffix
+                asset_name = f"audio{audio_ext}"
+                shutil.copy(audio_path, remotion_public / asset_name)
+
+                props = {
+                    "captions": captions,
+                    "audioUrl": asset_name, 
+                    "fontSize": 90,
+                    "centeredStart": True,
+                    "randomOrientation": True,
+                    "verticalFirstWord": True
+                }
+                
+                shuo_json_path = audio_dir / "shuo.json"
+                with open(shuo_json_path, 'w', encoding='utf-8') as f:
+                    json.dump(props, f, ensure_ascii=False, indent=2)
+                
+                video_output = task_manager.get_dir("videos") / "remotion_video.mp4"
+                
+                # Calculate duration in frames (approx 30fps)
+                total_duration_ms = captions[-1]["endMs"] if captions else 3000
+                duration_frames = int((total_duration_ms / 1000) * 30) + 30 # buffer
+                
+                run_remotion_render(shuo_json_path, video_output, duration_frames=duration_frames)
+                
+                print(f"\nSuccess! Video generated:")
+                print(f"  Video: {video_output}")
+            else:
+                print(f"\nSuccess! TTS Files generated in task {task_id}")
+            
+            return
+        except Exception as e:
+            import traceback
+            print(f"Error during TTS/Render: {e}")
+            print(traceback.format_exc())
+            sys.exit(1)
+
     target_video_path = task_manager.get_dir("video") / "source.mp4"
     
     if args.url:
