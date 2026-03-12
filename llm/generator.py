@@ -79,3 +79,32 @@ class ArticleGenerator:
         except json.JSONDecodeError as e:
             print(f"Failed to parse LLM response: {content}")
             raise e
+    def generate_script(self, context_text: str, user_prompt: str) -> str:
+        """
+        Generate a new video script based on context and prompt.
+        """
+        prompt = f"""
+        你是一个专业的视频脚本策划。我将给你一段视频的原始转录内容作为参考背景。
+        请根据这段内容，按照用户的特定要求，重新创作一段适合朗读的视频脚本。
+        
+        要求：
+        - 脚本应当口语化，适合短视频表达。
+        - 如果适用，可以在脚本中适当加入 ChatTTS 的口语化占位符，例如 [laugh] (笑声), [laughter], [uv_break] (停顿), [oral_2] (更口语化)。
+        - 只输出脚本正文内容，不要包含任何多余的解释、Markdown 标记或标题。
+        
+        原始参考内容：
+        {context_text}
+        
+        用户特定改写要求：
+        {user_prompt}
+        """
+
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=[
+                {"role": "system", "content": "你是一个专业的短视频脚本编剧，直接输出脚本文本。"},
+                {"role": "user", "content": prompt}
+            ]
+        )
+
+        return response.choices[0].message.content.strip()

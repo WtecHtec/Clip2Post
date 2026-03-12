@@ -5,10 +5,17 @@ import type { TTSOptions } from '../api';
 interface TTSVideoFormProps {
     onGenerate: (options: TTSOptions) => void;
     disabled?: boolean;
+    initialText?: string;
+    submitLabel?: string;
 }
 
-export const TTSVideoForm: React.FC<TTSVideoFormProps> = ({ onGenerate, disabled }) => {
-    const [text, setText] = useState('');
+export const TTSVideoForm: React.FC<TTSVideoFormProps> = ({
+    onGenerate,
+    disabled,
+    initialText = '',
+    submitLabel = 'Generate Video'
+}) => {
+    const [text, setText] = useState(initialText);
     const [ttsEngine, setTtsEngine] = useState('edge');
     const [voice, setVoice] = useState('');
 
@@ -155,9 +162,9 @@ export const TTSVideoForm: React.FC<TTSVideoFormProps> = ({ onGenerate, disabled
                     className="btn-primary"
                     onClick={handleSubmit}
                     disabled={disabled || !text.trim()}
-                    style={{ padding: '0.8rem 2.5rem' }}
+                    style={{ width: '100%', marginTop: '1.5rem' }}
                 >
-                    Generate Video
+                    {submitLabel}
                     <Play size={18} fill="currentColor" />
                 </button>
             </div>

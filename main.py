@@ -278,6 +278,35 @@ async def tts_render(
     )
     
     return {"task_id": task_id, "message": "TTS Render Task started."}
+@app.post("/api/ai_script")
+async def generate_ai_script(
+    task_id: str = Form(...),
+    prompt: str = Form(...),
+    llm_api_key: str = Form(""),
+    llm_base_url: str = Form(""),
+    llm_model: str = Form("")
+):
+    """Generate a new script based on previous task context and a prompt."""
+    task_manager = TaskManager(task_id=task_id)
+    subtitle_path = task_manager.get_dir("subtitle") / "subtitle.txt"
+    
+    if not subtitle_path.exists():
+        return JSONResponse(status_code=404, content={"error": "找不到原始视频的识别内容，请确保上一步已完成。"})
+        
+    with open(subtitle_path, 'r', encoding='utf-8') as f:
+        context_text = f.read()
+
+    llm_generator = ArticleGenerator(
+        api_key=llm_api_key if llm_api_key else None,
+        base_url=llm_base_url if llm_base_url else None,
+        model=llm_model if llm_model else None
+    )
+    
+    try:
+        script = llm_generator.generate_script(context_text, prompt)
+        return {"script": script}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": f"AI 生成失败: {str(e)}"})
 
 @app.get("/api/tasks")
 async def get_tasks():

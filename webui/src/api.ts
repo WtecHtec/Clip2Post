@@ -1,3 +1,5 @@
+import type { LLMSettings } from './components/SettingsPanel';
+
 const API_BASE_URL = 'http://localhost:8000/api';
 
 export interface TaskStatus {
@@ -99,6 +101,28 @@ export const generateTTSVideo = async (options: TTSOptions): Promise<string> => 
 
   const data = await response.json();
   return data.task_id;
+};
+
+export const generateAIScript = async (taskId: string, prompt: string, llmSettings: LLMSettings): Promise<string> => {
+  const formData = new FormData();
+  formData.append('task_id', taskId);
+  formData.append('prompt', prompt);
+  formData.append('llm_api_key', llmSettings.apiKey);
+  formData.append('llm_base_url', llmSettings.baseUrl);
+  formData.append('llm_model', llmSettings.model);
+
+  const response = await fetch(`${API_BASE_URL}/ai_script`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || `AI Script generation failed: ${response.statusText}`);
+  }
+
+  const data = await response.json();
+  return data.script;
 };
 
 export const pollStatus = async (taskId: string): Promise<TaskStatus> => {

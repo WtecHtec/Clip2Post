@@ -1,16 +1,28 @@
 import React from 'react';
 import classNames from 'classnames';
-import { FileText, Image as ImageIcon, Layout, Video, Mic, Film } from 'lucide-react';
+import { FileText, Image as ImageIcon, Layout, Video, Mic, Film, Sparkles } from 'lucide-react';
 import { getAssetUrl } from '../api';
 import type { TaskResults } from '../api';
+import { AIVideoCreator } from './AIVideoCreator';
+import type { LLMSettings } from './SettingsPanel';
 
 interface ResultsDisplayProps {
     results: TaskResults;
-    activeTab: 'subtitles' | 'markdown' | 'images' | 'html' | 'videos' | 'audio' | 'source';
-    onTabChange: (tab: 'subtitles' | 'markdown' | 'images' | 'html' | 'videos' | 'audio' | 'source') => void;
+    taskId: string;
+    llmSettings: LLMSettings;
+    activeTab: 'subtitles' | 'markdown' | 'images' | 'html' | 'videos' | 'audio' | 'source' | 'recreate';
+    onTabChange: (tab: 'subtitles' | 'markdown' | 'images' | 'html' | 'videos' | 'audio' | 'source' | 'recreate') => void;
+    onTaskCreated: (id: string) => void;
 }
 
-export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ results, activeTab, onTabChange }) => {
+export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({
+    results,
+    taskId,
+    llmSettings,
+    activeTab,
+    onTabChange,
+    onTaskCreated
+}) => {
     const activeMediaRef = React.useRef<HTMLVideoElement | HTMLAudioElement | null>(null);
 
     const handlePlay = (e: React.SyntheticEvent<HTMLVideoElement | HTMLAudioElement>) => {
@@ -92,6 +104,14 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ results, activeT
                 >
                     <Mic size={16} style={{ display: 'inline', marginRight: '6px' }} />
                     Audio
+                </button>
+                <button
+                    className={classNames('tab-btn', { active: activeTab === 'recreate' })}
+                    onClick={() => onTabChange('recreate')}
+                    style={{ marginLeft: 'auto', border: '1px solid var(--accent-primary)', background: activeTab === 'recreate' ? 'var(--accent-primary)' : 'transparent' }}
+                >
+                    <Sparkles size={16} style={{ display: 'inline', marginRight: '6px' }} />
+                    AI Re-creation
                 </button>
             </div>
 
@@ -246,6 +266,15 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ results, activeT
                             <EmptyState message="No audio extracted." Icon={Mic} />
                         )}
                     </div>
+                )}
+
+                {activeTab === 'recreate' && (
+                    <AIVideoCreator
+                        taskId={taskId}
+                        contextText={results.subtitles}
+                        llmSettings={llmSettings}
+                        onTaskCreated={onTaskCreated}
+                    />
                 )}
             </div>
         </div>
