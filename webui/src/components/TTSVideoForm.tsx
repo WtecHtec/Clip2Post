@@ -48,19 +48,20 @@ export const TTSVideoForm: React.FC<TTSVideoFormProps> = ({
     }, [initialOptions]);
 
     const CHATTTS_PRESETS: Record<string, Partial<TTSOptions>> = {
-        default: { temperature: 0.3, top_p: 0.7, top_k: 20, speed: 1.0 },
-        mature_male: { temperature: 0.55, top_p: 0.8, top_k: 20, speed: 0.9 },
-        terror: { temperature: 0.65, top_p: 0.85, top_k: 30, speed: 0.85 },
-        comedy: { temperature: 0.8, top_p: 0.9, top_k: 40, speed: 1.05 },
-        storyteller: { temperature: 0.7, top_p: 0.85, top_k: 30, speed: 0.95 },
-        science: { temperature: 0.6, top_p: 0.8, top_k: 20, speed: 1.0 },
-        mystery: { temperature: 0.65, top_p: 0.85, top_k: 30, speed: 0.9 }
+        default: { voice: '2222', temperature: 0.3, top_p: 0.7, top_k: 20, speed: 1.0 },
+        mature_male: { voice: '2222', temperature: 0.55, top_p: 0.8, top_k: 20, speed: 0.9 },
+        terror: { voice: '6666', temperature: 0.65, top_p: 0.85, top_k: 30, speed: 0.85 },
+        comedy: { voice: '8888', temperature: 0.8, top_p: 0.9, top_k: 40, speed: 1.05 },
+        storyteller: { voice: '1111', temperature: 0.7, top_p: 0.85, top_k: 30, speed: 0.95 },
+        science: { voice: '5555', temperature: 0.6, top_p: 0.8, top_k: 20, speed: 1.0 },
+        mystery: { voice: '7777', temperature: 0.65, top_p: 0.85, top_k: 30, speed: 0.9 }
     };
 
     const handlePresetChange = (p: string) => {
         setPreset(p);
         if (p !== 'custom' && CHATTTS_PRESETS[p]) {
             const settings = CHATTTS_PRESETS[p];
+            if (settings.voice !== undefined) setVoice(settings.voice);
             if (settings.temperature !== undefined) setTemperature(settings.temperature);
             if (settings.top_p !== undefined) setTopP(settings.top_p);
             if (settings.top_k !== undefined) setTopK(settings.top_k);
