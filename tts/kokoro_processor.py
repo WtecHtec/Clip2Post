@@ -55,7 +55,8 @@ class KokoroProcessor:
                     lang = "zh"
                     samples, sr = self.kokoro.create(seg, voice=voice, speed=1.0, lang=lang)
                 except Exception as e:
-                    print(f"Warning: Kokoro 'zh' failed ({e}). Falling back to 'en-us'.")
+                    print(f"Warning: Kokoro '{lang}' failed ({e}).")
+                    # Fallback to English
                     lang = "en-us"
                     samples, sr = self.kokoro.create(seg, voice=voice, speed=1.0, lang=lang)
             else:
@@ -65,8 +66,10 @@ class KokoroProcessor:
             
             # Convert numpy samples to pydub AudioSegment
             # Kokoro outputs float32 samples between -1 and 1
-            # pydub likes int16
+            # Ensure samples are within [-1, 1] before conversion
+            samples = np.clip(samples, -1.0, 1.0)
             audio_int16 = (samples * 32767).astype(np.int16)
+            
             seg_audio = AudioSegment(
                 audio_int16.tobytes(), 
                 frame_rate=sr,
@@ -75,6 +78,7 @@ class KokoroProcessor:
             )
             
             seg_duration_ms = len(seg_audio)
+            print(f"  [Kokoro] Generated segment: {seg[:30]!r}... duration: {seg_duration_ms}ms")
             
             word_boundaries.append({
                 "text": seg,

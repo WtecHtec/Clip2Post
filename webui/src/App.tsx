@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react';
 import { Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
-import { uploadVideo, pollStatus, fetchResults, fetchTasks } from './api';
-import type { TaskStatus, TaskResults, UploadOptions, TaskOverview } from './api';
+import { uploadVideo, pollStatus, fetchResults, fetchTasks, generateTTSVideo } from './api';
+import type { TaskStatus, TaskResults, UploadOptions, TaskOverview, TTSOptions } from './api';
 
 import { Sidebar } from './components/Sidebar';
 import { UploadForm } from './components/UploadForm';
+import { TTSVideoForm } from './components/TTSVideoForm';
 import { ResultsDisplay } from './components/ResultsDisplay';
 import type { LLMSettings } from './components/SettingsPanel';
 
 function App() {
+  const [workflowMode, setWorkflowMode] = useState<'video-to-post' | 'text-to-video'>('video-to-post');
   const [tasks, setTasks] = useState<TaskOverview[]>([]);
   const [file, setFile] = useState<File | null>(null);
   const [videoUrl, setVideoUrl] = useState<string>('');
@@ -122,6 +124,19 @@ function App() {
     }
   };
 
+  const handleTTSGenerate = async (options: TTSOptions) => {
+    try {
+      setStatus({ progress: 0.1, desc: '初始化任务...', state: 'pending' });
+      setResults(null);
+      const newTaskId = await generateTTSVideo(options);
+      setTaskId(newTaskId);
+      loadTasks();
+    } catch (err) {
+      console.error(err);
+      setStatus({ progress: 0, desc: '生成失败', state: 'error' });
+    }
+  };
+
   const resetToUpload = () => {
     setFile(null);
     setVideoUrl('');
@@ -146,44 +161,68 @@ function App() {
             <p>AI Video Configuration & Processing</p>
           </header>
 
+          <div className="workflow-switcher" style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', justifyContent: 'center' }}>
+            <button
+              className={workflowMode === 'video-to-post' ? 'btn-toggle active' : 'btn-toggle'}
+              onClick={() => { setWorkflowMode('video-to-post'); resetToUpload(); }}
+              style={{ padding: '0.6rem 1.2rem', borderRadius: '20px', border: '1px solid var(--border-color)', background: workflowMode === 'video-to-post' ? 'var(--accent-primary)' : 'rgba(255,255,255,0.05)', cursor: 'pointer', transition: 'all 0.3s' }}
+            >
+              📹 Video-to-Post
+            </button>
+            <button
+              className={workflowMode === 'text-to-video' ? 'btn-toggle active' : 'btn-toggle'}
+              onClick={() => { setWorkflowMode('text-to-video'); resetToUpload(); }}
+              style={{ padding: '0.6rem 1.2rem', borderRadius: '20px', border: '1px solid var(--border-color)', background: workflowMode === 'text-to-video' ? 'var(--accent-primary)' : 'rgba(255,255,255,0.05)', cursor: 'pointer', transition: 'all 0.3s' }}
+            >
+              文字转视频 (Text-to-Video)
+            </button>
+          </div>
+
           <div className="glass-panel">
             {!taskId || status?.state === 'error' ? (
-              <UploadForm
-                file={file}
-                videoUrl={videoUrl}
-                onVideoUrlChange={setVideoUrl}
-                isDragging={isDragging}
-                onFileSelect={(file) => {
-                  setFile(file);
-                  if (file) setVideoUrl(''); // clear URL if file is selected
-                  setTaskId(null);
-                  setResults(null);
-                  setStatus(null);
-                }}
-                onDragStateChange={setIsDragging}
-                asrEngine={asrEngine}
-                onAsrChange={setAsrEngine}
-                options={{
-                  extractClips,
-                  addOverlay,
-                  generateArticle,
-                  generateImages,
-                  generateHtml,
-                  customPrompt
-                }}
-                onOptionsChange={(opts) => {
-                  setExtractClips(opts.extractClips);
-                  setAddOverlay(opts.addOverlay);
-                  setGenerateArticle(opts.generateArticle);
-                  setGenerateImages(opts.generateImages);
-                  setGenerateHtml(opts.generateHtml);
-                  setCustomPrompt(opts.customPrompt);
-                }}
-                onLlmSettingsChange={setLlmSettings}
-                onUpload={handleUpload}
-                disableUpload={!file && !videoUrl}
-                isErrorState={status?.state === 'error'}
-              />
+              workflowMode === 'video-to-post' ? (
+                <UploadForm
+                  file={file}
+                  videoUrl={videoUrl}
+                  onVideoUrlChange={setVideoUrl}
+                  isDragging={isDragging}
+                  onFileSelect={(file) => {
+                    setFile(file);
+                    if (file) setVideoUrl(''); // clear URL if file is selected
+                    setTaskId(null);
+                    setResults(null);
+                    setStatus(null);
+                  }}
+                  onDragStateChange={setIsDragging}
+                  asrEngine={asrEngine}
+                  onAsrChange={setAsrEngine}
+                  options={{
+                    extractClips,
+                    addOverlay,
+                    generateArticle,
+                    generateImages,
+                    generateHtml,
+                    customPrompt
+                  }}
+                  onOptionsChange={(opts) => {
+                    setExtractClips(opts.extractClips);
+                    setAddOverlay(opts.addOverlay);
+                    setGenerateArticle(opts.generateArticle);
+                    setGenerateImages(opts.generateImages);
+                    setGenerateHtml(opts.generateHtml);
+                    setCustomPrompt(opts.customPrompt);
+                  }}
+                  onLlmSettingsChange={setLlmSettings}
+                  onUpload={handleUpload}
+                  disableUpload={!file && !videoUrl}
+                  isErrorState={status?.state === 'error'}
+                />
+              ) : (
+                <TTSVideoForm
+                  onGenerate={handleTTSGenerate}
+                  disabled={status?.state === 'pending' || status?.state === 'processing'}
+                />
+              )
             ) : (
               <div className="progress-container">
                 <div className="progress-header">

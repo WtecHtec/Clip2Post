@@ -42,6 +42,12 @@ export interface UploadOptions {
   llmModel: string;
 }
 
+export interface TTSOptions {
+  text: string;
+  ttsEngine: string;
+  voice: string;
+}
+
 export const uploadVideo = async (options: UploadOptions, file?: File | null): Promise<string> => {
   const formData = new FormData();
   if (file) {
@@ -70,6 +76,25 @@ export const uploadVideo = async (options: UploadOptions, file?: File | null): P
 
   if (!response.ok) {
     throw new Error(`Upload failed: ${response.statusText}`);
+  }
+
+  const data = await response.json();
+  return data.task_id;
+};
+
+export const generateTTSVideo = async (options: TTSOptions): Promise<string> => {
+  const formData = new FormData();
+  formData.append('text', options.text);
+  formData.append('tts_engine', options.ttsEngine);
+  formData.append('voice', options.voice);
+
+  const response = await fetch(`${API_BASE_URL}/tts_render`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    throw new Error(`TTS Render failed: ${response.statusText}`);
   }
 
   const data = await response.json();

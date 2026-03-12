@@ -15,6 +15,10 @@ from asr.recognizer import ASRRecognizer
 from llm.generator import ArticleGenerator
 from screenshot.extractor import ScreenshotExtractor
 from utils.html_builder import build_html_article
+from tts.processor import run_tts_sync
+from tts.kokoro_processor import run_kokoro_tts_sync
+from video.remotion_renderer import run_remotion_render
+import json
 
 # Initialize NLP models (global ones that don't need heavy loading at startup)
 screenshot_tool = ScreenshotExtractor()
@@ -135,6 +139,68 @@ def process_video_pipeline(
         task_manager.update_status(1.0, f"处理失败: {str(e)}", "error")
         print(traceback.format_exc())
 
+def process_tts_render_pipeline(
+    task_id: str,
+    text: str,
+    tts_engine: str = "edge",
+    voice: str = ""
+):
+    """Background task to generate TTS audio and render video directly."""
+    task_manager = TaskManager(task_id=task_id)
+    try:
+        task_manager.update_status(0.1, f"正在生成语音 ({tts_engine})...", "processing")
+        audio_dir = task_manager.get_dir("audio")
+        output_base = audio_dir / "tts_output"
+        
+        if tts_engine == "kokoro":
+            voice = voice or "af_heart"
+            audio_path, json_path = run_kokoro_tts_sync(text, str(output_base), voice=voice)
+        elif tts_engine == "chattts":
+            from tts.chattts_processor import run_chattts_sync
+            audio_path, json_path = run_chattts_sync(text, str(output_base), voice=voice)
+        else:
+            voice = voice or "zh-CN-XiaoxiaoNeural"
+            audio_path, json_path = run_tts_sync(text, str(output_base), voice=voice)
+            
+        task_manager.update_status(0.5, "正在合成视频...", "processing")
+        
+        # Prepare props for Remotion
+        with open(json_path, 'r', encoding='utf-8') as f:
+            captions = json.load(f)
+            
+        # Copy audio to remotion/public
+        remotion_public = Path(__file__).parent / "skills" / "remotion" / "public"
+        remotion_public.mkdir(parents=True, exist_ok=True)
+        audio_ext = Path(audio_path).suffix
+        asset_name = f"audio{audio_ext}"
+        shutil.copy(audio_path, remotion_public / asset_name)
+        
+        props = {
+            "captions": captions,
+            "audioUrl": asset_name,
+            "fontSize": 90,
+            "centeredStart": True,
+            "randomOrientation": True,
+            "verticalFirstWord": True
+        }
+        
+        shuo_json_path = audio_dir / "shuo.json"
+        with open(shuo_json_path, 'w', encoding='utf-8') as f:
+            json.dump(props, f, ensure_ascii=False, indent=2)
+            
+        video_output = task_manager.get_dir("videos") / "remotion_video.mp4"
+        total_duration_ms = captions[-1]["endMs"] if captions else 3000
+        duration_frames = int((total_duration_ms / 1000) * 30) + 30
+        
+        run_remotion_render(shuo_json_path, video_output, duration_frames=duration_frames)
+        
+        task_manager.update_status(1.0, "合成成功！", "completed")
+        
+    except Exception as e:
+        import traceback
+        task_manager.update_status(1.0, f"合成失败: {str(e)}", "error")
+        print(traceback.format_exc())
+
 @app.post("/api/upload")
 async def upload_video(
     background_tasks: BackgroundTasks, 
@@ -189,6 +255,29 @@ async def upload_video(
     )
     
     return {"task_id": task_id, "message": "Task started."}
+
+@app.post("/api/tts_render")
+async def tts_render(
+    background_tasks: BackgroundTasks,
+    text: str = Form(...),
+    tts_engine: str = Form("edge"),
+    voice: str = Form("")
+):
+    """Generate TTS audio and render video from text."""
+    task_manager = TaskManager()
+    task_id = task_manager.task_id
+    
+    task_manager.update_status(0.05, "任务已启动...", "processing")
+    
+    background_tasks.add_task(
+        process_tts_render_pipeline,
+        task_id,
+        text,
+        tts_engine,
+        voice
+    )
+    
+    return {"task_id": task_id, "message": "TTS Render Task started."}
 
 @app.get("/api/tasks")
 async def get_tasks():

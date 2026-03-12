@@ -3,9 +3,19 @@ import re
 def split_text_into_segments(text):
     """
     Split text into segments based on all punctuation to allow for natural pauses
-    and manageable caption blocks. TTS engines naturally pause at these points,
-    so coherence is maintained.
+    and manageable caption blocks.
     """
+    if not text:
+        return []
+
+    # Clean text: remove newlines, tabs, and normalize quotes
+    # Newlines are often the cause of TTS repetition or crashes
+    text = text.replace('\r\n', ' ').replace('\n', ' ').replace('\t', ' ')
+    text = text.replace('“', '"').replace('”', '"').replace('‘', "'").replace('’', "'")
+    
+    # Remove multiple spaces
+    text = re.sub(r'\s+', ' ', text).strip()
+
     # Split by any punctuation: ，。！？、,.;!?
     pattern = r'[^，。！？、,.;!?]+([，。！？、,.;!?]*)'
     matches = list(re.finditer(pattern, text))
