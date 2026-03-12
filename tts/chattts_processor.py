@@ -41,8 +41,12 @@ class ChatTTSProcessor:
 
             print(f"  [ChatTTS] Processing segment: {seg[:30]}...")
             
-            # Use proper RefineTextParams object instead of dict
-            params_refine_text = self.chat.RefineTextParams(prompt='[oral_2][laugh_0][break_4]')
+            # Determine refinement prompt based on content
+            # If user already used manual tags, use a lighter prompt to avoid conflict
+            has_manual_tags = bool(re.search(r'\[(laugh|laughter|uv_break|oral_.*?)\]', seg))
+            refine_prompt = '[oral_2][laugh_0][break_4]' if not has_manual_tags else ''
+            
+            params_refine_text = self.chat.RefineTextParams(prompt=refine_prompt)
             
             # Use seed/voice if provided
             # ChatTTS uses random vectors or seeds. 
