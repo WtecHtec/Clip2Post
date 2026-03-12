@@ -30,3 +30,4 @@ tasks/*
 /models/*
 *.srt
 /asset/*
+*.mp3

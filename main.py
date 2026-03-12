@@ -143,12 +143,35 @@ def process_tts_render_pipeline(
     task_id: str,
     text: str,
     tts_engine: str = "edge",
-    voice: str = ""
+    voice: str = "",
+    temperature: float = 0.3,
+    top_p: float = 0.7,
+    top_k: int = 20,
+    speed: float = 5,
+    refine_text: bool = True
 ):
     """Background task to generate TTS audio and render video directly."""
     task_manager = TaskManager(task_id=task_id)
     try:
         task_manager.update_status(0.1, f"正在生成语音 ({tts_engine})...", "processing")
+        
+        # Save task configuration for future re-generation
+        import json
+        ai_dir = task_manager.get_dir("ai")
+        config_path = ai_dir / "tts_config.json"
+        config_data = {
+            "text": text,
+            "ttsEngine": tts_engine,
+            "voice": voice,
+            "temperature": temperature,
+            "top_p": top_p,
+            "top_k": top_k,
+            "speed": speed,
+            "refine_text": refine_text
+        }
+        with open(config_path, 'w', encoding='utf-8') as f:
+            json.dump(config_data, f, ensure_ascii=False, indent=2)
+
         audio_dir = task_manager.get_dir("audio")
         output_base = audio_dir / "tts_output"
         
@@ -157,7 +180,11 @@ def process_tts_render_pipeline(
             audio_path, json_path = run_kokoro_tts_sync(text, str(output_base), voice=voice)
         elif tts_engine == "chattts":
             from tts.chattts_processor import run_chattts_sync
-            audio_path, json_path = run_chattts_sync(text, str(output_base), voice=voice)
+            audio_path, json_path = run_chattts_sync(
+                text, str(output_base), voice=voice,
+                temperature=temperature, top_p=top_p, top_k=top_k, 
+                speed=speed, refine_text_flag=refine_text
+            )
         else:
             voice = voice or "zh-CN-XiaoxiaoNeural"
             audio_path, json_path = run_tts_sync(text, str(output_base), voice=voice)
@@ -261,7 +288,12 @@ async def tts_render(
     background_tasks: BackgroundTasks,
     text: str = Form(...),
     tts_engine: str = Form("edge"),
-    voice: str = Form("")
+    voice: str = Form(""),
+    temperature: float = Form(0.3),
+    top_p: float = Form(0.7),
+    top_k: int = Form(20),
+    speed: float = Form(5),
+    refine_text: bool = Form(True)
 ):
     """Generate TTS audio and render video from text."""
     task_manager = TaskManager()
@@ -274,7 +306,12 @@ async def tts_render(
         task_id,
         text,
         tts_engine,
-        voice
+        voice,
+        temperature,
+        top_p,
+        top_k,
+        speed,
+        refine_text
     )
     
     return {"task_id": task_id, "message": "TTS Render Task started."}
@@ -403,6 +440,17 @@ async def get_results(task_id: str):
     source_video_path = task_manager.get_dir("video") / "source.mp4"
     source_video_url = f"/tasks/{task_id}/video/source.mp4" if source_video_path.exists() else None
     
+    # Get TTS config for re-generation
+    tts_config = None
+    tts_config_path = task_manager.get_dir("ai") / "tts_config.json"
+    if tts_config_path.exists():
+        import json
+        try:
+            with open(tts_config_path, 'r', encoding='utf-8') as f:
+                tts_config = json.load(f)
+        except:
+            pass
+
     return {
         "subtitles": subtitle_content,
         "markdown": article_content,
@@ -410,7 +458,8 @@ async def get_results(task_id: str):
         "html_url": html_url,
         "video_clips": video_clips_data,
         "audio_url": audio_url,
-        "source_video": source_video_url
+        "source_video": source_video_url,
+        "tts_config": tts_config
     }
 
 if __name__ == "__main__":

@@ -23,6 +23,7 @@ export interface TaskResults {
   video_clips?: ClipMetadata[];
   audio_url?: string;
   source_video?: string;
+  tts_config?: TTSOptions;
 }
 
 export interface TaskOverview extends TaskStatus {
@@ -48,6 +49,11 @@ export interface TTSOptions {
   text: string;
   ttsEngine: string;
   voice: string;
+  temperature?: number;
+  top_p?: number;
+  top_k?: number;
+  speed?: number;
+  refine_text?: boolean;
 }
 
 export const uploadVideo = async (options: UploadOptions, file?: File | null): Promise<string> => {
@@ -89,6 +95,12 @@ export const generateTTSVideo = async (options: TTSOptions): Promise<string> => 
   formData.append('text', options.text);
   formData.append('tts_engine', options.ttsEngine);
   formData.append('voice', options.voice);
+
+  if (options.temperature !== undefined) formData.append('temperature', String(options.temperature));
+  if (options.top_p !== undefined) formData.append('top_p', String(options.top_p));
+  if (options.top_k !== undefined) formData.append('top_k', String(options.top_k));
+  if (options.speed !== undefined) formData.append('speed', String(options.speed));
+  if (options.refine_text !== undefined) formData.append('refine_text', String(options.refine_text));
 
   const response = await fetch(`${API_BASE_URL}/tts_render`, {
     method: 'POST',

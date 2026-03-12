@@ -30,6 +30,7 @@ function App() {
   const [customPrompt, setCustomPrompt] = useState("");
 
   const [llmSettings, setLlmSettings] = useState<LLMSettings>({ apiKey: '', baseUrl: '', model: '' });
+  const [reGenerateOptions, setReGenerateOptions] = useState<Partial<TTSOptions> | null>(null);
 
   const loadTasks = async () => {
     try {
@@ -130,11 +131,20 @@ function App() {
       setResults(null);
       const newTaskId = await generateTTSVideo(options);
       setTaskId(newTaskId);
+      setReGenerateOptions(null); // Clear after start
       loadTasks();
     } catch (err) {
       console.error(err);
       setStatus({ progress: 0, desc: '生成失败', state: 'error' });
     }
+  };
+
+  const handleReGenerate = (options: TTSOptions) => {
+    setWorkflowMode('text-to-video');
+    setReGenerateOptions(options);
+    setTaskId(null);
+    setResults(null);
+    setStatus(null);
   };
 
   const resetToUpload = () => {
@@ -143,6 +153,7 @@ function App() {
     setTaskId(null);
     setResults(null);
     setStatus(null);
+    setReGenerateOptions(null);
   };
 
   return (
@@ -220,6 +231,7 @@ function App() {
               ) : (
                 <TTSVideoForm
                   onGenerate={handleTTSGenerate}
+                  initialOptions={reGenerateOptions || undefined}
                   disabled={status?.state === 'pending' || status?.state === 'processing'}
                 />
               )
@@ -255,6 +267,7 @@ function App() {
             activeTab={activeTab}
             onTabChange={setActiveTab}
             onTaskCreated={selectTask}
+            onReGenerate={handleReGenerate}
           />
         )}
       </div>

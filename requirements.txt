@@ -2,6 +2,7 @@ fastapi
 uvicorn
 python-multipart
 openai
+transformers==4.43.3
 funasr==1.0.26
 modelscope==1.14.0
 torch
@@ -16,8 +17,9 @@ markdown
 opencv-python
 pillow
 yt-dlp
-edge-tts
+edge-tts>=7.2.7
 kokoro-onnx
 onnxruntime
 soundfile
 scipy
+ChatTTS

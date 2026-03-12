@@ -13,6 +13,7 @@ interface ResultsDisplayProps {
     activeTab: 'subtitles' | 'markdown' | 'images' | 'html' | 'videos' | 'audio' | 'source' | 'recreate';
     onTabChange: (tab: 'subtitles' | 'markdown' | 'images' | 'html' | 'videos' | 'audio' | 'source' | 'recreate') => void;
     onTaskCreated: (id: string) => void;
+    onReGenerate?: (options: any) => void;
 }
 
 export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({
@@ -21,7 +22,8 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({
     llmSettings,
     activeTab,
     onTabChange,
-    onTaskCreated
+    onTaskCreated,
+    onReGenerate
 }) => {
     const activeMediaRef = React.useRef<HTMLVideoElement | HTMLAudioElement | null>(null);
 
@@ -111,7 +113,7 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({
                     style={{ marginLeft: 'auto', border: '1px solid var(--accent-primary)', background: activeTab === 'recreate' ? 'var(--accent-primary)' : 'transparent' }}
                 >
                     <Sparkles size={16} style={{ display: 'inline', marginRight: '6px' }} />
-                    AI Re-creation
+                    AI Recreate
                 </button>
             </div>
 
@@ -269,12 +271,45 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({
                 )}
 
                 {activeTab === 'recreate' && (
-                    <AIVideoCreator
-                        taskId={taskId}
-                        contextText={results.subtitles}
-                        llmSettings={llmSettings}
-                        onTaskCreated={onTaskCreated}
-                    />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                        {results.tts_config && (
+                            <div style={{
+                                padding: '1.5rem',
+                                background: 'rgba(99, 102, 241, 0.1)',
+                                borderRadius: '12px',
+                                border: '1px solid rgba(99, 102, 241, 0.2)',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center'
+                            }}>
+                                <div>
+                                    <h4 style={{ margin: '0 0 0.5rem 0', color: '#818cf8' }}>TTS Re-generation</h4>
+                                    <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                                        Modify settings and re-generate using the original text.
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={() => onReGenerate?.(results.tts_config)}
+                                    className="btn-primary"
+                                    style={{ padding: '0.6rem 1.2rem' }}
+                                >
+                                    Adjust & Re-generate
+                                </button>
+                            </div>
+                        )}
+
+                        <div style={{ borderTop: results.tts_config ? '1px solid rgba(255,255,255,0.05)' : 'none', paddingTop: results.tts_config ? '2rem' : 0 }}>
+                            <h4 style={{ margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <Sparkles size={18} /> AI Video Creator (New Content)
+                            </h4>
+                            <AIVideoCreator
+                                taskId={taskId}
+                                contextText={results.subtitles}
+                                llmSettings={llmSettings}
+                                onTaskCreated={onTaskCreated}
+                            />
+                        </div>
+                    </div>
                 )}
             </div>
         </div>

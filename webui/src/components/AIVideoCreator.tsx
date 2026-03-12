@@ -62,7 +62,7 @@ export const AIVideoCreator: React.FC<AIVideoCreatorProps> = ({
                 }}>
                     <Sparkles size={20} color="white" />
                 </div>
-                <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 600 }}>AI 视频重创作</h2>
+                <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 600 }}>AI 视频再创作</h2>
             </div>
 
             <div style={{
@@ -106,7 +106,7 @@ export const AIVideoCreator: React.FC<AIVideoCreatorProps> = ({
                     <button
                         className="btn-primary"
                         onClick={handleGenerateScript}
-                        disabled={isGeneratingScript || !prompt.trim()}
+                        disabled={isGeneratingScript || !prompt.trim() || !contextText}
                         style={{ padding: '0 1.25rem', height: '42px', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
                     >
                         {isGeneratingScript ? <Loader2 className="spinner" size={18} /> : <Wand2 size={18} />}
