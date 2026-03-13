@@ -1,112 +1,92 @@
-# Clip2Post - 视频转文章工具
+# Clip2Post - 视频转文章与 文字转视频
 
-Clip2Post 是一个强大的命令行工具，旨在将视频内容自动转化为排版精美的 HTML 文章。它整合了先进的 ASR（语音识别）、LLM（大语言模型）和自动化截图技术。
+Clip2Post 是一个全媒体处理工具，旨在实现视频与文章、文字与视频之间的双向全自动转化。
 
-## 主要功能
+## 🚀 主要功能
 
-- **多模式 ASR 支持**：
-  - `funasr`：阿里巴巴开源的高精度语音识别。
-  - `faster-whisper`：基于 CTranslate2 的高效 Whisper 实现。
-  - `whisperx`：提供极其精确的单词级时间戳对齐。
-- **智能文案生成**：利用 LLM（如 GPT-4）根据转录内容自动生成结构化文章。
-- **自动视频截图**：根据 AI 识别的关键时间点，自动从视频中提取相关画面，并插入到文章中。
-- **高价值片段提取**：利用 LLM 识别视频中的关键对话内容，并自动使用 FFmpeg 切割为高价值短视频。
-- **支持 URL 下载**：集成 `yt-dlp`，支持直接输入 YouTube / X / Bilibili 等各大社交媒体视频链接进行自动化下载并处理。
-- **模块化运行**：支持仅转录、仅解析、仅提取片段或全流程自动化。
+- **视频转文章 (Video to Article)**：
+  - 自动语音识别 (ASR)：支持 FunASR、Faster-Whisper 等。
+  - 智能文案生成：LLM 自动总结视频内容并生成结构化文章。
+  - 自动视频截图：根据内容自动抓取关键帧并插入文章。
+  - 片段提取：AI 识别精彩片段并自动剪辑。
+
+- **AI 视频复刻 (Text to Video / Agent Mode)**：
+  - **文字转视频**：输入文案，自动生成配音并实时渲染动态排版视频。
+  - **Agent 模式**：只需提供台词或主题，AI 自动完成脚本撰写、配音生成及图片素材的智能对位。
+
+
+- **多模式配音 (TTS)**：
+  - 集成 Edge-TTS、Kokoro 及 ChatTTS 语音合成矩阵，提供自然流畅的配音效果。
+
+---
+
+## 📸 运行效果
 
 ![image](./imgs/image.png)
 
 ![image](./imgs/image-01.png)
 
-## 环境准备
+![image](./imgs/image-02.png)
+
+---
+
+## 🛠️ 环境准备
 
 ### 依赖安装
-
-1. 确保已安装 FFmpeg。
+1. 确保已安装 **FFmpeg**。
 2. 安装 Python 依赖：
-
 ```bash
 pip install -r requirements.txt
-# （可选）建议系统中安装 ffmpeg 以确保视频处理及 yt-dlp 拼接音视频流正常工作
 ```
 
 ### 配置环境
-
-在根目录创建 `.env` 文件，并填写必要的信息：
-
+在根目录创建 `.env` 文件，填写 API 密钥等信息：
 ```env
 OPENAI_API_KEY=你的API密钥
 OPENAI_BASE_URL=https://api.openai.com/v1
 LLM_MODEL=gpt-4-turbo
-ASR_TYPE=faster-whisper
 ```
 
-## 使用说明
+---
 
-### 全流程运行
-输入本地视频，直接生成最终的 HTML 文章：
+## 📖 使用说明
+
+### 1. Web 控制台 (推荐)
 ```bash
-python cli.py --video ./test/test01.mp4 --asr faster-whisper
-```
-使用在线链接（如 YouTube），直接下载并处理：
-```bash
-python cli.py --url "https://www.youtube.com/watch?v=..." --asr funasr
-```
-
-### 仅转录模式
-仅提取音频并生成字幕和原始文本，不执行 AI 文章生成。同样支持本地视频或 URL：
-```bash
-python cli.py --video ./test/test01.mp4 --transcribe-only
-# 或
-python cli.py --url "https://twitter.com/..." --transcribe-only
-```
-
-### 仅提取高价值片段模式
-提取视频中的高深度、有价值的对话片段，并将其自动切割成若干短视频，输出目录为 `tasks/TASK_ID/videos/` 文件夹（同样支持 `--url`）：
-```bash
-python cli.py --video ./test/test01.mp4 --extract-clips
-```
-如果希望在生成的短视频画面中嵌入自媒体金句字幕，可以添加 `--add-text-overlay` 参数选项：
-```bash
-python cli.py --video ./test/test01.mp4 --extract-clips --add-text-overlay
-```
-
-### 仅截图与构建模式
-跳过转录和 AI 阶段，根据已有的 `image.json` 文件重新提取截图并生成 HTML（通常用于手动微调后）：
-```bash
-python cli.py --video ./test/test01.mp4 --screenshots-only ./tasks/TASK_ID/ai/image.json
-```
-
-## 输出结构
-
-所有处理结果将保存在 `tasks/` 目录下，每个任务拥有独立的文件夹：
-- `audio/`：提取的音频文件。
-- `subtitle/`：带时间戳的字幕文件。
-- `raw_text/`：纯文本转录。
-- `ai/`：AI 生成的文章 (`article.md`)、截图规划 (`image.json`) 以及高价值片段规划 (`clips.json`)。
-- `images/`：从视频中提取的关键帧。
-- `article/`：最终生成的 HTML 文章。
-- `videos/`：通过 `--extract-clips` 模式生成的独立视频片段文件。
-
-## 技术栈
-
-- 语言: Python 3.12
-- ASR: FunASR, Faster-Whisper, WhisperX
-- 视频处理: FFmpeg (ffmpeg-python)
-- AI: OpenAI API
-- 模板: HTML5 + CSS
-
-## 运行
-```bash
+# 启动 API
 python main.py
+
+# 启动前端 (另开终端)
+cd webui
+npm install && npm run dev
 ```
 
-## web ui
-
+### 2. 命令行操作
+具体可看 cli.py
 ```bash
-cd webui
+# 全流程视频转文章
+python cli.py --video ./test.mp4
+
+# 提取片段并添加动态字幕覆盖
+python cli.py --video ./test.mp4 --extract-clips --add-text-overlay
+```
+
+### 3. 需要安装remotion
+```bash
+cd skills/remotion
 
 npm install
 
-npm run dev
 ```
+
+---
+
+## 📂 输出结构
+- `audio/`：配音与音轨。
+- `ai/`：AI 脚本与配置文件。
+- `images/`：提取或上传的素材。
+- `videos/`：最终合成的视频。
+- `article/`：生成的 HTML 文章。
+
+---
+Made with ❤️ by WtecHtec.
