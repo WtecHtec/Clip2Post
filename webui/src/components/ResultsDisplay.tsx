@@ -14,6 +14,7 @@ interface ResultsDisplayProps {
     onTabChange: (tab: 'subtitles' | 'markdown' | 'images' | 'html' | 'videos' | 'audio' | 'source' | 'recreate') => void;
     onTaskCreated: (id: string) => void;
     onReGenerate?: (options: any) => void;
+    isAgentMode?: boolean;
 }
 
 export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({
@@ -23,7 +24,8 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({
     activeTab,
     onTabChange,
     onTaskCreated,
-    onReGenerate
+    onReGenerate,
+    isAgentMode = false
 }) => {
     const activeMediaRef = React.useRef<HTMLVideoElement | HTMLAudioElement | null>(null);
 
@@ -107,14 +109,16 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({
                     <Mic size={16} style={{ display: 'inline', marginRight: '6px' }} />
                     Audio
                 </button>
-                <button
-                    className={classNames('tab-btn', { active: activeTab === 'recreate' })}
-                    onClick={() => onTabChange('recreate')}
-                    style={{ marginLeft: 'auto', border: '1px solid var(--accent-primary)', background: activeTab === 'recreate' ? 'var(--accent-primary)' : 'transparent' }}
-                >
-                    <Sparkles size={16} style={{ display: 'inline', marginRight: '6px' }} />
-                    AI Recreate
-                </button>
+                {!isAgentMode && (
+                    <button
+                        className={classNames('tab-btn', { active: activeTab === 'recreate' })}
+                        onClick={() => onTabChange('recreate')}
+                        style={{ marginLeft: 'auto', border: '1px solid var(--accent-primary)', background: activeTab === 'recreate' ? 'var(--accent-primary)' : 'transparent' }}
+                    >
+                        <Sparkles size={16} style={{ display: 'inline', marginRight: '6px' }} />
+                        AI Recreate
+                    </button>
+                )}
             </div>
 
             <div className="tab-content">

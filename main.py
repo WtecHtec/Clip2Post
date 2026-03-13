@@ -2,6 +2,7 @@ import os
 import shutil
 import asyncio
 from pathlib import Path
+from typing import List
 from fastapi import FastAPI, UploadFile, File, BackgroundTasks, Form
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -324,14 +325,13 @@ async def generate_ai_script(
     llm_model: str = Form("")
 ):
     """Generate a new script based on previous task context and a prompt."""
-    task_manager = TaskManager(task_id=task_id)
-    subtitle_path = task_manager.get_dir("subtitle") / "subtitle.txt"
-    
-    if not subtitle_path.exists():
-        return JSONResponse(status_code=404, content={"error": "找不到原始视频的识别内容，请确保上一步已完成。"})
-        
-    with open(subtitle_path, 'r', encoding='utf-8') as f:
-        context_text = f.read()
+    context_text = ""
+    if task_id and task_id != "agent_init":
+        task_manager = TaskManager(task_id=task_id)
+        subtitle_path = task_manager.get_dir("subtitle") / "subtitle.txt"
+        if subtitle_path.exists():
+            with open(subtitle_path, 'r', encoding='utf-8') as f:
+                context_text = f.read()
 
     llm_generator = ArticleGenerator(
         api_key=llm_api_key if llm_api_key else None,
@@ -461,6 +461,180 @@ async def get_results(task_id: str):
         "source_video": source_video_url,
         "tts_config": tts_config
     }
+
+def process_agent_video_pipeline(
+    task_id: str,
+    text: str,
+    image_descriptions: list,
+    tts_engine: str = "edge",
+    voice: str = "",
+    temperature: float = 0.3,
+    top_p: float = 0.7,
+    top_k: int = 20,
+    speed: float = 5,
+    refine_text: bool = True,
+    llm_settings: dict = None
+):
+    """Background task for Agent Mode video generation."""
+    task_manager = TaskManager(task_id=task_id)
+    try:
+        task_manager.update_status(0.1, f"正在生成语音 ({tts_engine})...", "processing")
+        
+        audio_dir = task_manager.get_dir("audio")
+        output_base = audio_dir / "tts_output"
+        
+        # 1. Generate TTS
+        if tts_engine == "kokoro":
+            voice = voice or "af_heart"
+            audio_path, json_path = run_kokoro_tts_sync(text, str(output_base), voice=voice)
+        elif tts_engine == "chattts":
+            from tts.chattts_processor import run_chattts_sync
+            audio_path, json_path = run_chattts_sync(
+                text, str(output_base), voice=voice,
+                temperature=temperature, top_p=top_p, top_k=top_k, 
+                speed=speed, refine_text_flag=refine_text
+            )
+        else:
+            voice = voice or "zh-CN-XiaoxiaoNeural"
+            audio_path, json_path = run_tts_sync(text, str(output_base), voice=voice)
+
+        task_manager.update_status(0.4, "AI 正在匹配图片与台词...", "processing")
+        
+        # 2. Match Images
+        with open(json_path, 'r', encoding='utf-8') as f:
+            captions = json.load(f)
+            
+        llm_generator = ArticleGenerator(
+            api_key=llm_settings.get("apiKey") if llm_settings else None,
+            base_url=llm_settings.get("baseUrl") if llm_settings else None,
+            model=llm_settings.get("model") if llm_settings else None
+        )
+        
+        matched_images = llm_generator.match_images_to_script(captions, image_descriptions)
+        
+        # 3. Prepare Remotion Props
+        remotion_public = Path(__file__).parent / "skills" / "remotion" / "public"
+        remotion_public.mkdir(parents=True, exist_ok=True)
+        
+        # Copy audio
+        audio_ext = Path(audio_path).suffix
+        audio_name = f"audio_{task_id}{audio_ext}"
+        shutil.copy(audio_path, remotion_public / audio_name)
+        
+        # Copy mapped images to public for Remotion to access
+        final_images = []
+        images_dir = task_manager.get_dir("images")
+        for img in matched_images:
+            src = img.get("src")
+            # Try to find the file
+            src_path = images_dir / src
+            if src_path.exists():
+                public_name = f"agent_{task_id}_{src}"
+                shutil.copy(src_path, remotion_public / public_name)
+                final_images.append({
+                    **img,
+                    "src": public_name
+                })
+        
+        props = {
+            "captions": captions,
+            "images": final_images,
+            "audioUrl": audio_name,
+            "fontSize": 90,
+            "centeredStart": True,
+            "randomOrientation": True,
+            "verticalFirstWord": True
+        }
+        
+        shuo_json_path = audio_dir / "shuo.json"
+        with open(shuo_json_path, 'w', encoding='utf-8') as f:
+            json.dump(props, f, ensure_ascii=False, indent=2)
+            
+        task_manager.update_status(0.6, "正在合成视频...", "processing")
+        
+        video_output = task_manager.get_dir("videos") / "remotion_video.mp4"
+        total_duration_ms = captions[-1]["endMs"] if captions else 3000
+        duration_frames = int((total_duration_ms / 1000) * 30) + 30
+        
+        run_remotion_render(shuo_json_path, video_output, duration_frames=duration_frames)
+        
+        task_manager.update_status(1.0, "合成成功！", "completed")
+        
+    except Exception as e:
+        import traceback
+        task_manager.update_status(1.0, f"合成失败: {str(e)}", "error")
+        print(traceback.format_exc())
+
+@app.post("/api/agent_video")
+async def generate_agent_video(
+    background_tasks: BackgroundTasks,
+    images: List[UploadFile] = File(None),
+    image_descriptions: str = Form("[]"), # JSON array
+    prompt: str = Form(""),
+    text: str = Form(""),
+    tts_engine: str = Form("edge"),
+    voice: str = Form(""),
+    temperature: float = Form(0.3),
+    top_p: float = Form(0.7),
+    top_k: int = Form(20),
+    speed: float = Form(1.0),
+    refine_text: bool = Form(True),
+    llm_api_key: str = Form(""),
+    llm_base_url: str = Form(""),
+    llm_model: str = Form("")
+):
+    """Endpoint for Agent Mode video generation."""
+    task_manager = TaskManager()
+    task_id = task_manager.task_id
+    
+    # 1. Save images
+    desc_list = []
+    try:
+        desc_list = json.loads(image_descriptions)
+    except:
+        pass
+
+    images_dir = task_manager.get_dir("images")
+    if images:
+        for img_file in images:
+            file_path = images_dir / img_file.filename
+            with open(file_path, "wb") as f:
+                f.write(await img_file.read())
+
+    llm_settings = {
+        "apiKey": llm_api_key,
+        "baseUrl": llm_base_url,
+        "model": llm_model
+    }
+
+    # 2. If text is empty, generate script from prompt
+    final_text = text
+    if not final_text and prompt:
+        llm_generator = ArticleGenerator(
+            api_key=llm_api_key if llm_api_key else None,
+            base_url=llm_base_url if llm_base_url else None,
+            model=llm_model if llm_model else None
+        )
+        context = f"可用图片描述: {image_descriptions}"
+        final_text = llm_generator.generate_script(context, prompt)
+
+    # 3. Start pipeline
+    background_tasks.add_task(
+        process_agent_video_pipeline,
+        task_id=task_id,
+        text=final_text,
+        image_descriptions=desc_list,
+        tts_engine=tts_engine,
+        voice=voice,
+        temperature=temperature,
+        top_p=top_p,
+        top_k=top_k,
+        speed=speed,
+        refine_text=refine_text,
+        llm_settings=llm_settings
+    )
+    
+    return {"task_id": task_id, "message": "Agent Video Task started.", "generated_text": final_text}
 
 if __name__ == "__main__":
     import uvicorn

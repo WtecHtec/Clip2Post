@@ -1,4 +1,5 @@
 import type { LLMSettings } from './components/SettingsPanel';
+export type { LLMSettings };
 
 const API_BASE_URL = 'http://localhost:8000/api';
 
@@ -113,6 +114,50 @@ export const generateTTSVideo = async (options: TTSOptions): Promise<string> => 
 
   const data = await response.json();
   return data.task_id;
+};
+
+export const generateAgentVideo = async (
+  options: TTSOptions,
+  images: File[],
+  imageDescriptions: { id: string, desc: string }[],
+  prompt: string,
+  llmSettings: LLMSettings
+): Promise<{ taskId: string, generatedText: string }> => {
+  const formData = new FormData();
+  formData.append('prompt', prompt);
+  formData.append('text', options.text);
+  formData.append('tts_engine', options.ttsEngine);
+  formData.append('voice', options.voice);
+  if (options.temperature !== undefined) formData.append('temperature', String(options.temperature));
+  if (options.top_p !== undefined) formData.append('top_p', String(options.top_p));
+  if (options.top_k !== undefined) formData.append('top_k', String(options.top_k));
+  if (options.speed !== undefined) formData.append('speed', String(options.speed));
+  if (options.refine_text !== undefined) formData.append('refine_text', String(options.refine_text));
+
+  formData.append('image_descriptions', JSON.stringify(imageDescriptions));
+  images.forEach(file => {
+    formData.append('images', file);
+  });
+
+  formData.append('llm_api_key', llmSettings.apiKey);
+  formData.append('llm_base_url', llmSettings.baseUrl);
+  formData.append('llm_model', llmSettings.model);
+
+  const response = await fetch(`${API_BASE_URL}/agent_video`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || `Agent Video generation failed: ${response.statusText}`);
+  }
+
+  const data = await response.json();
+  return {
+    taskId: data.task_id,
+    generatedText: data.generated_text
+  };
 };
 
 export const generateAIScript = async (taskId: string, prompt: string, llmSettings: LLMSettings): Promise<string> => {

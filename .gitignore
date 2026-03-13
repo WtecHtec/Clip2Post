@@ -31,3 +31,4 @@ tasks/*
 *.srt
 /asset/*
 *.mp3
+**/public/*

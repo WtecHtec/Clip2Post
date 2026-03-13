@@ -84,18 +84,18 @@ class ArticleGenerator:
         Generate a new video script based on context and prompt.
         """
         prompt = f"""
-        你是一个专业的视频脚本策划。我将给你一段视频的原始转录内容作为参考背景。
-        请根据这段内容，按照用户的特定要求，重新创作一段适合朗读的视频脚本。
+        你是一个专业的视频脚本策划。
+        {"我将给你一段视频的原始转录内容作为参考背景。" if context_text else ""}
+        请根据{"这些背景以及" if context_text else ""}用户的特定要求，创作一段适合朗读的视频脚本。
         
         要求：
         - 脚本应当口语化，适合短视频表达。
-        - 如果适用，可以在脚本中适当加入 ChatTTS 的口语化占位符，例如 [laugh] (笑声), [laughter], [uv_break] (停顿), [oral_2] (更口语化)。
         - 只输出脚本正文内容，不要包含任何多余的解释、Markdown 标记或标题。
         
-        原始参考内容：
-        {context_text}
+        {"原始参考内容：" if context_text else ""}
+        {context_text if context_text else ""}
         
-        用户特定改写要求：
+        用户特定创作/改写要求：
         {user_prompt}
         """
 
@@ -108,3 +108,62 @@ class ArticleGenerator:
         )
 
         return response.choices[0].message.content.strip()
+    def match_images_to_script(self, captions: list, image_descriptions: list) -> list:
+        """
+        Use LLM to decide where to place images based on captions and descriptions.
+        captions: [{"text": "...", "startMs": 0, "endMs": 1000}, ...]
+        image_descriptions: [{"id": "img1.jpg", "desc": "description"}, ...]
+        Returns: list of {src, startMs, endMs, inFlow}
+        """
+        prompt = f"""
+        你是一个视频剪辑助手。我将给你一段视频的字幕（带时间戳）和一些图片的描述。
+        请根据字幕的内容，决定把这些图片放在视频的哪个时间段。
+        
+        要求：
+        - 图片应当出现在与描述内容最相关的字幕时间段。
+        - 每张图片建议显示 2-4 秒。
+        - 如果字幕内容非常长，可以多次使用同一张图片，或者间隔排列。
+        - 优先使用 inFlow: true (作为图文混排的一部分， false 不需要图文混排)。
+        
+        字幕内容：
+        {json.dumps(captions, ensure_ascii=False)}
+        
+        图片描述：
+        {json.dumps(image_descriptions, ensure_ascii=False)}
+        
+        请严格按照以下 JSON list 格式返回结果：
+        [
+            {{
+                "src": "图片ID/文件名",
+                "startMs": 1000,
+                "endMs": 4000,
+                "inFlow": true
+            }}
+        ]
+        """
+
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=[
+                {"role": "system", "content": "你是一个视频剪辑专家，只输出合法的纯JSON数组。"},
+                {"role": "user", "content": prompt}
+            ],
+            response_format={ "type": "json_object" } if "gpt-4-o" in self.model or "gpt-4-turbo" in self.model else None
+        )
+
+        content = response.choices[0].message.content.strip()
+        # Some models might not support json_object mode or might wrap it
+        if content.startswith("```json"):
+            content = content.replace("```json", "").replace("```", "").strip()
+        
+        try:
+            # If the model returned a dict with a key, try to extract the list
+            data = json.loads(content)
+            if isinstance(data, dict):
+                for key in data:
+                    if isinstance(data[key], list):
+                        return data[key]
+            return data
+        except:
+            print(f"Failed to parse LLM image matching: {content}")
+            return []

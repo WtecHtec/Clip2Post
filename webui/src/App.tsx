@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Loader2, CheckCircle2, AlertCircle, Video, FileText, Type, Sparkles } from 'lucide-react';
 import { uploadVideo, pollStatus, fetchResults, fetchTasks, generateTTSVideo } from './api';
 import type { TaskStatus, TaskResults, UploadOptions, TaskOverview, TTSOptions } from './api';
 
 import { Sidebar } from './components/Sidebar';
 import { UploadForm } from './components/UploadForm';
 import { TTSVideoForm } from './components/TTSVideoForm';
+import { AgentVideoForm } from './components/AgentVideoForm';
 import { ResultsDisplay } from './components/ResultsDisplay';
 import type { LLMSettings } from './components/SettingsPanel';
 
@@ -28,6 +29,7 @@ function App() {
   const [generateImages, setGenerateImages] = useState(true);
   const [generateHtml, setGenerateHtml] = useState(true);
   const [customPrompt, setCustomPrompt] = useState("");
+  const [isAgentMode, setIsAgentMode] = useState(false);
 
   const [llmSettings, setLlmSettings] = useState<LLMSettings>({ apiKey: '', baseUrl: '', model: '' });
   const [reGenerateOptions, setReGenerateOptions] = useState<Partial<TTSOptions> | null>(null);
@@ -172,21 +174,23 @@ function App() {
             <p>AI Video Configuration & Processing</p>
           </header>
 
-          <div className="workflow-switcher" style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', justifyContent: 'center' }}>
-            <button
-              className={workflowMode === 'video-to-post' ? 'btn-toggle active' : 'btn-toggle'}
-              onClick={() => { setWorkflowMode('video-to-post'); resetToUpload(); }}
-              style={{ padding: '0.6rem 1.2rem', borderRadius: '20px', border: '1px solid var(--border-color)', background: workflowMode === 'video-to-post' ? 'var(--accent-primary)' : 'rgba(255,255,255,0.05)', cursor: 'pointer', transition: 'all 0.3s' }}
-            >
-              📹 Video-to-Post
-            </button>
-            <button
-              className={workflowMode === 'text-to-video' ? 'btn-toggle active' : 'btn-toggle'}
-              onClick={() => { setWorkflowMode('text-to-video'); resetToUpload(); }}
-              style={{ padding: '0.6rem 1.2rem', borderRadius: '20px', border: '1px solid var(--border-color)', background: workflowMode === 'text-to-video' ? 'var(--accent-primary)' : 'rgba(255,255,255,0.05)', cursor: 'pointer', transition: 'all 0.3s' }}
-            >
-              文字转视频 (Text-to-Video)
-            </button>
+          <div className="workflow-switcher" style={{ marginBottom: '2rem' }}>
+            <div className="segmented-control">
+              <button
+                className={workflowMode === 'video-to-post' ? 'segmented-btn active' : 'segmented-btn'}
+                onClick={() => { setWorkflowMode('video-to-post'); resetToUpload(); }}
+              >
+                <Video size={18} />
+                Video-to-Post
+              </button>
+              <button
+                className={workflowMode === 'text-to-video' ? 'segmented-btn active' : 'segmented-btn'}
+                onClick={() => { setWorkflowMode('text-to-video'); resetToUpload(); }}
+              >
+                <FileText size={18} />
+                Text-to-Video
+              </button>
+            </div>
           </div>
 
           <div className="glass-panel">
@@ -229,11 +233,37 @@ function App() {
                   isErrorState={status?.state === 'error'}
                 />
               ) : (
-                <TTSVideoForm
-                  onGenerate={handleTTSGenerate}
-                  initialOptions={reGenerateOptions || undefined}
-                  disabled={status?.state === 'pending' || status?.state === 'processing'}
-                />
+                <>
+                  <div className="segmented-control sub">
+                    <button
+                      className={!isAgentMode ? 'segmented-btn active' : 'segmented-btn'}
+                      onClick={() => setIsAgentMode(false)}
+                    >
+                      <Type size={16} />
+                      Standard (普通)
+                    </button>
+                    <button
+                      className={isAgentMode ? 'segmented-btn active' : 'segmented-btn'}
+                      onClick={() => setIsAgentMode(true)}
+                    >
+                      <Sparkles size={16} />
+                      Agent (智能图文)
+                    </button>
+                  </div>
+                  {isAgentMode ? (
+                    <AgentVideoForm
+                      llmSettings={llmSettings}
+                      onTaskCreated={selectTask}
+                      disabled={status?.state === 'pending' || status?.state === 'processing'}
+                    />
+                  ) : (
+                    <TTSVideoForm
+                      onGenerate={handleTTSGenerate}
+                      initialOptions={reGenerateOptions || undefined}
+                      disabled={status?.state === 'pending' || status?.state === 'processing'}
+                    />
+                  )}
+                </>
               )
             ) : (
               <div className="progress-container">
@@ -264,6 +294,7 @@ function App() {
             results={results}
             taskId={taskId!}
             llmSettings={llmSettings}
+            isAgentMode={isAgentMode}
             activeTab={activeTab}
             onTabChange={setActiveTab}
             onTaskCreated={selectTask}
