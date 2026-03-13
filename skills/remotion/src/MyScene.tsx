@@ -44,8 +44,14 @@ export const MySceneSchema = z.object({
 });
 
 const VIBRANT_COLORS = [
-    '#FF3E00', '#00D8FF', '#FFBE00', '#FF00E4',
-    '#00FF87', '#FFFFFF', '#FFFF00', '#FF4500'
+    '#323232', // Charocal/Black
+    '#E91E63', // Pink/Crimson
+    '#3F51B5', // Indigo
+    '#2196F3', // Blue
+    '#009688', // Teal
+    '#4CAF50', // Green
+    '#FF5722', // Deep Orange
+    '#673AB7', // Deep Purple
 ];
 
 type LayoutItem = {
@@ -75,25 +81,87 @@ export const MyScene: React.FC<z.infer<typeof MySceneSchema>> = ({
     const { fps, width: videoWidth, height: videoHeight } = useVideoConfig();
     const currentMs = (frame / fps) * 1000;
 
-    // 1. Unified Layout Engine
+    // 1. Grid Occupancy Layout Engine (Tetris Style)
     const items = useMemo(() => {
-        const result: LayoutItem[] = [];
+        const CELL_SIZE = 10; // Finer grid (10px) for better accuracy
         const margin = 60;
-        const maxWidth = videoWidth - margin;
-        const rowHeight = fontSize * 1.6;
-        let currentX = 60;
-        let currentY = centeredStart ? (videoHeight / 2 - rowHeight / 2) : 100;
-        let maxItemHeightInRow = rowHeight;
+        const gridWidth = Math.floor(videoWidth / CELL_SIZE);
+        const marginCells = Math.floor(margin / CELL_SIZE);
+
+        // Occupancy map: Map<y_cell, Set<x_cell>>
+        const occupancy = new Map<number, Set<number>>();
+        const isOccupied = (tx: number, ty: number, tw: number, th: number) => {
+            for (let y = ty; y < ty + th; y++) {
+                const row = occupancy.get(y);
+                if (!row) continue;
+                for (let x = tx; x < tx + tw; x++) {
+                    if (row.has(x)) return true;
+                }
+            }
+            return false;
+        };
+        const markOccupied = (tx: number, ty: number, tw: number, th: number) => {
+            for (let y = ty; y < ty + th; y++) {
+                if (!occupancy.has(y)) occupancy.set(y, new Set());
+                const row = occupancy.get(y)!;
+                for (let x = tx; x < tx + tw; x++) {
+                    row.add(x);
+                }
+            }
+        };
+
+        const result: LayoutItem[] = [];
+        // Initial offset: start at ~20% of height to avoid being too high
+        let lowestYSearch = Math.floor((videoHeight * 0.2) / CELL_SIZE);
+
+        // Pre-process flowItems: split long captions into smaller pieces
+        const processedFlowItems: any[] = [];
+
+        captions.forEach((c, idx) => {
+            // Randomize orientation for the entire sentence (50/50 mix)
+            const sentenceVertical = random(`orient-${idx}-${c.text}`) > 0.5;
+
+            if (c.text.length > 8) {
+                const mid = Math.floor(c.text.length / 2);
+
+                processedFlowItems.push({
+                    ...c,
+                    text: c.text.substring(0, mid), // First half
+                    originalId: c.startMs,
+                    forceVertical: sentenceVertical,
+                    groupIndex: idx,
+                    type: 'text' as const
+                });
+                processedFlowItems.push({
+                    ...c,
+                    text: c.text.substring(mid), // Second half
+                    originalId: c.startMs,
+                    forceVertical: sentenceVertical,
+                    groupIndex: idx,
+                    type: 'text' as const
+                });
+            } else {
+                processedFlowItems.push({
+                    ...c,
+                    forceVertical: sentenceVertical,
+                    groupIndex: idx,
+                    type: 'text' as const
+                });
+            }
+        });
 
         const flowItems = [
-            ...captions.map(c => ({ ...c, type: 'text' as const })),
+            ...processedFlowItems,
             ...images.filter(img => img.inFlow).map(img => ({ ...img, type: 'image' as const }))
-        ].sort((a, b) => a.startMs - b.startMs);
+        ].sort((a, b) => {
+            if (a.startMs !== b.startMs) return a.startMs - b.startMs;
+            return 0;
+        });
 
         flowItems.forEach((item, i) => {
             const isFirst = i === 0;
-            let itemWidth = 0;
-            let itemHeight = 0;
+            let itemWidthPx = 0;
+            let itemHeightPx = 0;
             let vertical = false;
 
             if (item.type === 'text') {
@@ -104,93 +172,120 @@ export const MyScene: React.FC<z.infer<typeof MySceneSchema>> = ({
                     fontWeight: '900',
                 });
 
-                const usableWidth = maxWidth - currentX;
-                const requiresWrap = dims.width > usableWidth;
-                const isMultiLine = dims.width > (maxWidth - 60);
+                // Standard sizing
+                itemWidthPx = dims.width;
+                itemHeightPx = dims.height;
 
-                if (isMultiLine) {
-                    // Force a new line first if we're already partially into a row
-                    if (currentX > 60) {
-                        currentX = 60;
-                        currentY += maxItemHeightInRow + 30;
-                        maxItemHeightInRow = rowHeight;
-                    }
-
-                    const estimatedLines = Math.ceil(dims.width / (maxWidth - 60));
-                    itemWidth = maxWidth - 60;
-                    itemHeight = dims.height * estimatedLines;
-
-                    // Force NEXT item to be on a new line
-                    result.push({
-                        ...item,
-                        x: currentX,
-                        y: currentY,
-                        width: itemWidth,
-                        height: itemHeight,
-                        color: VIBRANT_COLORS[i % VIBRANT_COLORS.length],
-                        vertical: false,
-                    });
-
-                    currentX = 60;
-                    currentY += itemHeight + 30;
-                    maxItemHeightInRow = rowHeight;
-                    return; // Early return for block-level item
+                // Orientation logic: inherited from group preprocessing
+                if (item.forceVertical !== undefined) {
+                    vertical = item.forceVertical;
                 } else {
-                    itemWidth = dims.width;
-                    itemHeight = dims.height;
+                    // Fallback should not happen with new logic but safe
+                    vertical = false;
+                }
 
-                    if (randomOrientation) {
-                        vertical = random(`${item.text}-${i}`) > 0.7;
-                    } else if (isFirst && verticalFirstWord) {
-                        vertical = true;
-                    }
+                if (vertical) {
+                    itemWidthPx = fontSize * 1.3 + 40; // Increase width for better character wrapping
+                    itemHeightPx = (fontSize * 1.15) * item.text!.length + 40; // More height buffer
+                }
 
-                    if (vertical) {
-                        itemWidth = fontSize * 1.5;
-                        itemHeight = dims.width;
-                    }
+                // If text is too wide for the whole grid, we have a problem, but usually we split by segment or enforce wrapping
+                // For this grid engine, we'll clamp item width to maxContentWidth
+                if (itemWidthPx > (videoWidth - margin * 2)) {
+                    itemWidthPx = videoWidth - margin * 2;
                 }
             } else {
-                itemWidth = item.width!;
-                itemHeight = item.height || (itemWidth * 0.5625);
+                // IMAGE: Full-width block style suggested by user previously, 
+                // but let's allow it to be slightly flexible if it fits.
+                // Actually, user wants "compact", so let's make it 80-90% width.
+                itemWidthPx = videoWidth - margin * 2;
+                itemHeightPx = itemWidthPx * 0.8;
+                if (itemHeightPx > videoHeight * 0.5) itemHeightPx = videoHeight * 0.5;
             }
 
-            if (!isFirst && currentX + itemWidth > maxWidth) {
-                currentX = 60;
-                currentY += maxItemHeightInRow + 30;
-                maxItemHeightInRow = rowHeight;
+            // Convert pixels to grid cells
+            // Ensure w/h are multiples of CELL_SIZE or slightly larger to prevent sub-pixel overlap
+            let wCells = Math.ceil((itemWidthPx + 30) / CELL_SIZE);
+            let hCells = Math.ceil((itemHeightPx + 30) / CELL_SIZE);
+
+            // CRITICAL: Ensure item fits in searchable area
+            const maxW = gridWidth - marginCells * 2;
+            if (wCells > maxW) wCells = maxW;
+
+            // For images, force full-width occupancy to ensure exclusivity
+            if (item.type === 'image') {
+                wCells = maxW;
             }
+
+            // Search for placement
+            let found = false;
+            let targetX = marginCells;
+            let targetY = lowestYSearch;
+            let searchTimeout = 0;
+
+            const maxSearchX = gridWidth - marginCells - wCells;
+
+            // Simple scanning search
+            while (!found && searchTimeout < 5000) {
+                searchTimeout++;
+                for (let x = marginCells; x <= maxSearchX; x++) {
+                    if (!isOccupied(x, targetY, wCells, hCells)) {
+                        targetX = x;
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    targetY++;
+                }
+            }
+
+            // Mark and store
+            markOccupied(targetX, targetY, wCells, hCells);
+
+            const finalX = targetX * CELL_SIZE;
+            const finalY = targetY * CELL_SIZE;
 
             result.push({
                 ...item,
-                x: currentX,
-                y: currentY,
-                width: itemWidth,
-                height: itemHeight,
-                color: VIBRANT_COLORS[i % VIBRANT_COLORS.length],
+                x: finalX,
+                y: finalY,
+                width: itemWidthPx,
+                height: itemHeightPx,
+                color: VIBRANT_COLORS[item.groupIndex % VIBRANT_COLORS.length],
                 vertical,
             });
 
-            currentX += itemWidth + 40;
-            maxItemHeightInRow = Math.max(maxItemHeightInRow, itemHeight);
+            // Keep chronological order dominant
+            if (item.type === 'image') {
+                // Images advanced the waterline completely to prevent any tucking
+                lowestYSearch = Math.max(lowestYSearch, targetY + hCells);
+            } else if (targetY > lowestYSearch) {
+                // Text allows very slight tucking for compact feel
+                lowestYSearch = Math.max(lowestYSearch, targetY - 2);
+            }
         });
 
         return result;
-    }, [captions, images, fontSize, videoWidth, videoHeight, centeredStart, verticalFirstWord, randomOrientation]);
+    }, [captions, images, fontSize, videoWidth, videoHeight, verticalFirstWord, randomOrientation]);
 
-    // 2. Camera Panning
-    const activeIndex = items.findIndex(
-        (c) => currentMs >= c.startMs && currentMs <= c.endMs,
+    // 2. Camera Panning: Prioritize focusing on images if multiple items are active
+    const activeImageIndex = items.findIndex(
+        (c) => c.type === 'image' && currentMs >= c.startMs && currentMs <= c.endMs,
     );
+    const activeTextIndex = items.findIndex(
+        (c) => c.type === 'text' && currentMs >= c.startMs && currentMs <= c.endMs,
+    );
+    const activeIndex = activeImageIndex !== -1 ? activeImageIndex : activeTextIndex;
+
     const lastRevealedIndex = [...items].reverse().findIndex(c => currentMs >= c.startMs);
     const effectiveIndex = activeIndex !== -1
         ? activeIndex
         : (lastRevealedIndex !== -1 ? (items.length - 1 - lastRevealedIndex) : 0);
 
     const activeItem = items[effectiveIndex];
-    // Plan A: Start from the top, but move the active item to the 2/3 screen height focus line.
-    const focusLineY = videoHeight * (2 / 3);
-    const rawTargetY = Math.max(0, activeItem.y - focusLineY);
+    // Plan B: Center the active item in the viewport for better focus
+    const rawTargetY = Math.max(0, (activeItem.y + activeItem.height / 2) - videoHeight / 2);
 
     const scrollSpring = spring({
         frame,
@@ -247,20 +342,29 @@ export const MyScene: React.FC<z.infer<typeof MySceneSchema>> = ({
                                     position: 'absolute',
                                     left: item.x,
                                     top: item.y,
-                                    color: item.color,
                                     fontSize,
                                     fontWeight: '900',
                                     fontFamily: 'Inter, sans-serif',
                                     whiteSpace: 'pre-wrap',
                                     wordBreak: 'break-word',
-                                    maxWidth: videoWidth - 120,
+                                    width: item.vertical ? fontSize * 1.3 : 'auto',
+                                    maxWidth: item.vertical ? fontSize * 1.8 : videoWidth - 120,
                                     transformOrigin: 'top left',
                                     transform: `
-                                        ${item.vertical ? 'rotate(90deg) translate(0, -100%)' : ''}
                                         scale(${interpolate(entrance, [0, 1], [0.9, 1])})
                                     `,
                                     opacity: entrance,
-                                    textShadow: '0 0 20px rgba(0,0,0,0.5)',
+                                    backgroundColor: '#FFFFFF',
+                                    color: item.color, // Vibrant color on white sticker
+                                    padding: '10px 25px', // More horizontal padding for symmetry
+                                    borderRadius: 16,
+                                    boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+                                    display: item.vertical ? 'flex' : 'inline-block',
+                                    flexDirection: 'column',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    textAlign: 'center',
+                                    lineHeight: 1.15,
                                 }}
                             >
                                 {item.text}
@@ -276,19 +380,41 @@ export const MyScene: React.FC<z.infer<typeof MySceneSchema>> = ({
                                     top: item.y,
                                     width: item.width,
                                     height: item.height,
-                                    transform: `scale(${entrance})`,
                                     opacity: entrance,
-                                    backgroundColor: 'rgba(255,255,255,0.05)',
-                                    borderRadius: 15,
+                                    backgroundColor: 'rgba(255,255,255,0.02)',
+                                    borderRadius: 30,
                                     overflow: 'hidden',
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
+                                    border: '1px solid rgba(255,255,255,0.1)',
+                                    boxShadow: '0 20px 50px rgba(0,0,0,0.5)',
+                                    transform: `translateY(${interpolate(entrance, [0, 1], [30, 0])}px)`,
                                 }}
                             >
+                                {/* Background Blurred layer for depth */}
+                                <AbsoluteFill style={{ overflow: 'hidden' }}>
+                                    <Img
+                                        src={item.src?.startsWith('http') ? item.src : staticFile(item.src!)}
+                                        style={{
+                                            width: '120%',
+                                            height: '120%',
+                                            objectFit: 'cover',
+                                            filter: 'blur(40px) brightness(0.4)',
+                                            transform: 'translate(-10%, -10%)'
+                                        }}
+                                    />
+                                </AbsoluteFill>
+
                                 <Img
                                     src={item.src?.startsWith('http') ? item.src : staticFile(item.src!)}
-                                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                    style={{
+                                        width: '100%',
+                                        height: '100%',
+                                        objectFit: 'contain',
+                                        zIndex: 2,
+                                        transform: `scale(${interpolate(currentMs, [item.startMs, item.endMs], [1.0, 1.05], { extrapolateRight: 'clamp' })})`
+                                    }}
                                     onError={(e) => console.error("Image load fail:", item.src)}
                                 />
                             </div>

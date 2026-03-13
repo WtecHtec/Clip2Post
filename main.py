@@ -196,16 +196,13 @@ def process_tts_render_pipeline(
         with open(json_path, 'r', encoding='utf-8') as f:
             captions = json.load(f)
             
-        # Copy audio to remotion/public
-        remotion_public = Path(__file__).parent / "skills" / "remotion" / "public"
-        remotion_public.mkdir(parents=True, exist_ok=True)
-        audio_ext = Path(audio_path).suffix
-        asset_name = f"audio{audio_ext}"
-        shutil.copy(audio_path, remotion_public / asset_name)
+        # Use symlink to root tasks directory to avoid copying
+        # (handeled automatically by RemotionRenderer)
+        audio_rel_path = f"tasks/{task_id}/audio/{Path(audio_path).name}"
         
         props = {
             "captions": captions,
-            "audioUrl": asset_name,
+            "audioUrl": audio_rel_path,
             "fontSize": 90,
             "centeredStart": True,
             "randomOrientation": True,
@@ -513,33 +510,26 @@ def process_agent_video_pipeline(
         matched_images = llm_generator.match_images_to_script(captions, image_descriptions)
         
         # 3. Prepare Remotion Props
-        remotion_public = Path(__file__).parent / "skills" / "remotion" / "public"
-        remotion_public.mkdir(parents=True, exist_ok=True)
+        # Asset symlink logic is now handled automatically by RemotionRenderer
         
-        # Copy audio
-        audio_ext = Path(audio_path).suffix
-        audio_name = f"audio_{task_id}{audio_ext}"
-        shutil.copy(audio_path, remotion_public / audio_name)
+        audio_rel_path = f"tasks/{task_id}/audio/{Path(audio_path).name}"
         
-        # Copy mapped images to public for Remotion to access
         final_images = []
         images_dir = task_manager.get_dir("images")
         for img in matched_images:
             src = img.get("src")
-            # Try to find the file
             src_path = images_dir / src
             if src_path.exists():
-                public_name = f"agent_{task_id}_{src}"
-                shutil.copy(src_path, remotion_public / public_name)
+                # Use path relative to remotion/public/ via symlink
                 final_images.append({
                     **img,
-                    "src": public_name
+                    "src": f"tasks/{task_id}/images/{src}"
                 })
         
         props = {
             "captions": captions,
             "images": final_images,
-            "audioUrl": audio_name,
+            "audioUrl": audio_rel_path,
             "fontSize": 90,
             "centeredStart": True,
             "randomOrientation": True,

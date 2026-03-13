@@ -2,12 +2,27 @@ import subprocess
 import json
 import os
 from pathlib import Path
+from config.settings import TASKS_DIR
 
 class RemotionRenderer:
     def __init__(self, remotion_dir):
         self.remotion_dir = Path(remotion_dir).resolve()
         if not self.remotion_dir.exists():
             raise FileNotFoundError(f"Remotion directory not found at {self.remotion_dir}")
+        self.ensure_symlink()
+
+    def ensure_symlink(self):
+        """Ensure a symlink exists from public/tasks to the root tasks directory."""
+        public_dir = self.remotion_dir / "public"
+        public_dir.mkdir(parents=True, exist_ok=True)
+        tasks_symlink = public_dir / "tasks"
+        # Check if it exists or is a broken symlink
+        if not tasks_symlink.exists() and not tasks_symlink.is_symlink():
+            try:
+                os.symlink(TASKS_DIR.absolute(), tasks_symlink)
+                print(f"      Created symlink: {tasks_symlink} -> {TASKS_DIR.absolute()}")
+            except Exception as e:
+                print(f"      Warning: Failed to create symlink: {e}")
 
     def render(self, props_path, output_path, duration_frames=300):
         """
