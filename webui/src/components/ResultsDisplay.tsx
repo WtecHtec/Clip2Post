@@ -14,7 +14,6 @@ interface ResultsDisplayProps {
     onTabChange: (tab: 'subtitles' | 'markdown' | 'images' | 'html' | 'videos' | 'audio' | 'source' | 'recreate') => void;
     onTaskCreated: (id: string) => void;
     onReGenerate?: (options: any) => void;
-    isAgentMode?: boolean;
 }
 
 export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({
@@ -24,8 +23,7 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({
     activeTab,
     onTabChange,
     onTaskCreated,
-    onReGenerate,
-    isAgentMode = false
+    onReGenerate
 }) => {
     const activeMediaRef = React.useRef<HTMLVideoElement | HTMLAudioElement | null>(null);
 
@@ -109,7 +107,7 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({
                     <Mic size={16} style={{ display: 'inline', marginRight: '6px' }} />
                     Audio
                 </button>
-                {!isAgentMode && (
+                {(results.task_type !== 'agent') && (
                     <button
                         className={classNames('tab-btn', { active: activeTab === 'recreate' })}
                         onClick={() => onTabChange('recreate')}

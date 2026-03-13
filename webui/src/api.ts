@@ -7,6 +7,7 @@ export interface TaskStatus {
   progress: number;
   desc: string;
   state: 'pending' | 'processing' | 'completed' | 'error';
+  task_type?: 'standard' | 'agent';
 }
 
 export interface ClipMetadata {
@@ -25,6 +26,7 @@ export interface TaskResults {
   audio_url?: string;
   source_video?: string;
   tts_config?: TTSOptions;
+  task_type?: 'standard' | 'agent';
 }
 
 export interface TaskOverview extends TaskStatus {

@@ -154,7 +154,7 @@ def process_tts_render_pipeline(
     """Background task to generate TTS audio and render video directly."""
     task_manager = TaskManager(task_id=task_id)
     try:
-        task_manager.update_status(0.1, f"正在生成语音 ({tts_engine})...", "processing")
+        task_manager.update_status(0.1, f"正在生成语音 ({tts_engine})...", "processing", task_type="standard")
         
         # Save task configuration for future re-generation
         import json
@@ -259,7 +259,7 @@ async def upload_video(
             shutil.copyfileobj(file.file, buffer)
             
     status_msg = "初始化处理..." if file else "接收到链接，初始化下载任务..."
-    task_manager.update_status(0.05, status_msg, "processing")
+    task_manager.update_status(0.05, status_msg, "processing", task_type="standard")
     
     # Start background task
     background_tasks.add_task(
@@ -297,7 +297,7 @@ async def tts_render(
     task_manager = TaskManager()
     task_id = task_manager.task_id
     
-    task_manager.update_status(0.05, "任务已启动...", "processing")
+    task_manager.update_status(0.05, "任务已启动...", "processing", task_type="standard")
     
     background_tasks.add_task(
         process_tts_render_pipeline,
@@ -359,6 +359,9 @@ async def get_tasks():
                     with open(status_file, "r", encoding="utf-8") as f:
                         status = json.load(f)
                         status["task_id"] = d.name
+                        # Default to standard if task_type is missing in old tasks
+                        if "task_type" not in status:
+                            status["task_type"] = "standard"
                         tasks_list.append(status)
                 except Exception:
                     pass
@@ -447,6 +450,9 @@ async def get_results(task_id: str):
                 tts_config = json.load(f)
         except:
             pass
+            
+    # Get Task Type
+    task_type = status.get("task_type", "standard")
 
     return {
         "subtitles": subtitle_content,
@@ -456,7 +462,8 @@ async def get_results(task_id: str):
         "video_clips": video_clips_data,
         "audio_url": audio_url,
         "source_video": source_video_url,
-        "tts_config": tts_config
+        "tts_config": tts_config,
+        "task_type": task_type
     }
 
 def process_agent_video_pipeline(
@@ -576,6 +583,7 @@ async def generate_agent_video(
     """Endpoint for Agent Mode video generation."""
     task_manager = TaskManager()
     task_id = task_manager.task_id
+    task_manager.update_status(0.01, "初始化 Agent 任务...", "processing", task_type="agent")
     
     # 1. Save images
     desc_list = []

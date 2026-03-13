@@ -33,14 +33,28 @@ class TaskManager:
         """Get path to a specific subdirectory."""
         return self.task_dir / name
 
-    def update_status(self, progress: float, desc: str, state: str = "processing"):
+    def update_status(self, progress: float, desc: str, state: str = "processing", task_type: str = None):
         """Update the status of the task."""
         import json
-        status_data = {
+        
+        # Load existing status to preserve task_type if not provided
+        status_data = {}
+        if self.status_file.exists():
+            try:
+                with open(self.status_file, "r", encoding="utf-8") as f:
+                    status_data = json.load(f)
+            except:
+                pass
+
+        status_data.update({
             "progress": progress,
             "desc": desc,
             "state": state
-        }
+        })
+        
+        if task_type:
+            status_data["task_type"] = task_type
+            
         with open(self.status_file, "w", encoding="utf-8") as f:
             json.dump(status_data, f, ensure_ascii=False)
 

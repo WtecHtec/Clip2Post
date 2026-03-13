@@ -313,7 +313,6 @@ function App() {
             results={results}
             taskId={taskId!}
             llmSettings={llmSettings}
-            isAgentMode={isAgentMode}
             activeTab={activeTab}
             onTabChange={setActiveTab}
             onTaskCreated={selectTask}
