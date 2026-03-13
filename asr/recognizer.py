@@ -7,10 +7,16 @@ from config.settings import (
     ASR_TYPE, ASR_MODEL_DIR, ASR_MODEL_REVISION, 
     VAD_MODEL, VAD_MODEL_REVISION,
     PUNC_MODEL, PUNC_MODEL_REVISION,
-    WHISPER_MODEL_SIZE, WHISPER_DEVICE, WHISPER_COMPUTE_TYPE
+    WHISPER_MODEL_SIZE, WHISPER_DEVICE, WHISPER_COMPUTE_TYPE,
+    HF_TOKEN, HF_ENDPOINT,
+    WHISPER_MODEL_PATH  # 支持本地模型路径
 )
 
 class ASRRecognizer:
+    """
+    ASR 语音识别管理器
+    支持 FunASR, Faster-Whisper, WhisperX 三种引擎
+    """
     # Class-level cache for models to avoid reloading
     _MODEL_CACHE = {}
 
@@ -18,9 +24,16 @@ class ASRRecognizer:
         self.asr_type = asr_type or ASR_TYPE
 
     def _ensure_model_loaded(self):
-        """Lazy load the model only when needed."""
+        """延迟加载 ASR 模型，避免启动时占用过多资源。"""
+        # 如果配置了 HF_TOKEN，注入环境变量（仅 WhisperX/Pyannote 某些 VAD 模型需要）
+        if HF_TOKEN:
+            os.environ["HF_TOKEN"] = HF_TOKEN
+        # 如果配置了 HF 镜像站，注入环境变量
+        if HF_ENDPOINT:
+            os.environ["HF_ENDPOINT"] = HF_ENDPOINT
+        
         if self.asr_type not in ASRRecognizer._MODEL_CACHE:
-            print(f"--- Loading ASR model: {self.asr_type} ---")
+            print(f"--- 正在加载 ASR 模型: {self.asr_type} ---")
             if self.asr_type == "funasr":
                 from funasr import AutoModel
                 ASRRecognizer._MODEL_CACHE[self.asr_type] = AutoModel(
@@ -33,15 +46,20 @@ class ASRRecognizer:
                 )
             elif self.asr_type == "faster-whisper":
                 from faster_whisper import WhisperModel
+                # 如果指定了本地路径，优先使用本地路径
+                model_to_load = WHISPER_MODEL_PATH if WHISPER_MODEL_PATH else WHISPER_MODEL_SIZE
                 ASRRecognizer._MODEL_CACHE[self.asr_type] = WhisperModel(
-                    WHISPER_MODEL_SIZE, 
+                    model_to_load, 
                     device=WHISPER_DEVICE, 
                     compute_type=WHISPER_COMPUTE_TYPE
                 )
             elif self.asr_type == "whisperx":
                 import whisperx
+                # 如果从魔塔下载了模型到 models/ 目录，请在 .env 中设置 WHISPER_MODEL_PATH
+                model_to_load = WHISPER_MODEL_PATH if WHISPER_MODEL_PATH else WHISPER_MODEL_SIZE
+                
                 model = whisperx.load_model(
-                    WHISPER_MODEL_SIZE, 
+                    model_to_load, 
                     device=WHISPER_DEVICE, 
                     compute_type=WHISPER_COMPUTE_TYPE
                 )
@@ -55,7 +73,7 @@ class ASRRecognizer:
                     "metadata": metadata
                 }
         else:
-            print(f"--- Using cached ASR model: {self.asr_type} ---")
+            print(f"--- 使用已缓存的 ASR 模型: {self.asr_type} ---")
 
     def format_time(self, milliseconds: int) -> str:
         """Convert milliseconds to HH:MM:SS format."""
@@ -66,8 +84,8 @@ class ASRRecognizer:
         h, m = divmod(m, 60)
         return f"{h:02d}:{m:02d}:{s:02d}"
 
-    def recognize(self, audio_path: Path, output_subtitle_path: Path, raw_output_path: Path = None) -> Path:
-        """Dispatch recognition based on asr_type with lazy loading."""
+    def recognize(self, audio_path: Path, output_subtitle_path: Path, raw_output_path: Path = None) -> tuple[Path, list]:
+        """Dispatch recognition based on asr_type and return (subtitle_path, segments)."""
         self._ensure_model_loaded()
         if self.asr_type == "funasr":
             return self._recognize_funasr(audio_path, output_subtitle_path, raw_output_path)
@@ -78,7 +96,7 @@ class ASRRecognizer:
         else:
             raise ValueError(f"Unsupported ASR_TYPE: {self.asr_type}")
 
-    def _recognize_funasr(self, audio_path: Path, output_subtitle_path: Path, raw_output_path: Path = None) -> Path:
+    def _recognize_funasr(self, audio_path: Path, output_subtitle_path: Path, raw_output_path: Path = None) -> tuple[Path, list]:
         """Original FunASR logic (updated for modern use)."""
         model = ASRRecognizer._MODEL_CACHE["funasr"]
         res_asr = model.generate(input=str(audio_path), output_timestamp=True)
@@ -112,9 +130,11 @@ class ASRRecognizer:
                 if current_start_ms is None and ts:
                     current_start_ms = ts[0]
                 current_sentence += char
+                current_end_ms = ts[1] if ts else current_start_ms
                 if char in punctuations or i == min_len - 1:
                     sentences.append({
-                        "start": current_start_ms or 0,
+                        "startMs": current_start_ms or 0,
+                        "endMs": current_end_ms or (current_start_ms or 0) + 500,
                         "text": current_sentence.strip()
                     })
                     current_sentence = ""
@@ -124,12 +144,12 @@ class ASRRecognizer:
         with open(output_subtitle_path, 'w', encoding='utf-8') as f:
             for sentence in sentences:
                 if not sentence['text']: continue
-                time_str = self.format_time(sentence['start'])
+                time_str = self.format_time(sentence['startMs'])
                 f.write(f"[{time_str}] {sentence['text']}\n\n")
                     
-        return output_subtitle_path
+        return output_subtitle_path, sentences
 
-    def _recognize_faster_whisper(self, audio_path: Path, output_subtitle_path: Path, raw_output_path: Path = None) -> Path:
+    def _recognize_faster_whisper(self, audio_path: Path, output_subtitle_path: Path, raw_output_path: Path = None) -> tuple[Path, list]:
         """Faster-Whisper implementation."""
         model = ASRRecognizer._MODEL_CACHE["faster-whisper"]
         segments, info = model.transcribe(str(audio_path), beam_size=5)
@@ -139,7 +159,8 @@ class ASRRecognizer:
         for segment in segments:
             full_text.append(segment.text)
             sentences.append({
-                "start": int(segment.start * 1000),
+                "startMs": int(segment.start * 1000),
+                "endMs": int(segment.end * 1000),
                 "text": segment.text.strip()
             })
             
@@ -151,12 +172,12 @@ class ASRRecognizer:
         output_subtitle_path.parent.mkdir(parents=True, exist_ok=True)
         with open(output_subtitle_path, 'w', encoding='utf-8') as f:
             for sentence in sentences:
-                time_str = self.format_time(sentence['start'])
+                time_str = self.format_time(sentence['startMs'])
                 f.write(f"[{time_str}] {sentence['text']}\n\n")
         
-        return output_subtitle_path
+        return output_subtitle_path, sentences
 
-    def _recognize_whisperx(self, audio_path: Path, output_subtitle_path: Path, raw_output_path: Path = None) -> Path:
+    def _recognize_whisperx(self, audio_path: Path, output_subtitle_path: Path, raw_output_path: Path = None) -> tuple[Path, list]:
         """WhisperX implementation with word-level alignment."""
         import whisperx
         cache = ASRRecognizer._MODEL_CACHE["whisperx"]
@@ -175,7 +196,8 @@ class ASRRecognizer:
         for segment in result["segments"]:
             full_text.append(segment["text"])
             sentences.append({
-                "start": int(segment["start"] * 1000),
+                "startMs": int(segment["start"] * 1000),
+                "endMs": int(segment["end"] * 1000),
                 "text": segment["text"].strip()
             })
             
@@ -187,7 +209,7 @@ class ASRRecognizer:
         output_subtitle_path.parent.mkdir(parents=True, exist_ok=True)
         with open(output_subtitle_path, 'w', encoding='utf-8') as f:
             for sentence in sentences:
-                time_str = self.format_time(sentence['start'])
+                time_str = self.format_time(sentence['startMs'])
                 f.write(f"[{time_str}] {sentence['text']}\n\n")
         
-        return output_subtitle_path
+        return output_subtitle_path, sentences

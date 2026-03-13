@@ -76,7 +76,7 @@ def process_video_pipeline(
         
         # Load the selected ASR model locally (replacing the global instance for this request)
         task_asr_model = ASRRecognizer(asr_type=asr_engine)
-        task_asr_model.recognize(audio_path, subtitle_path)
+        _, _ = task_asr_model.recognize(audio_path, subtitle_path)
         
         # Optional: Extract Clips
         if extract_clips_flag:
@@ -633,6 +633,81 @@ async def generate_agent_video(
     )
     
     return {"task_id": task_id, "message": "Agent Video Task started.", "generated_text": final_text}
+    
+@app.post("/api/audio_transcribe")
+async def audio_transcribe(
+    audio: UploadFile = File(...),
+    asr_engine: str = Form("funasr")
+):
+    """Transcription only for Audio-to-Video mode."""
+    task_manager = TaskManager()
+    task_id = task_manager.task_id
+    
+    # Save audio
+    audio_dir = task_manager.get_dir("audio")
+    audio_path = audio_dir / "audio.wav"
+    with open(audio_path, "wb") as buffer:
+        shutil.copyfileobj(audio.file, buffer)
+        
+    task_manager.update_status(0.1, f"正在分析音频 ({asr_engine})...", "processing", task_type="standard")
+    
+    # Run ASR
+    subtitle_path = task_manager.get_dir("subtitle") / "subtitle.txt"
+    asr_model = ASRRecognizer(asr_type=asr_engine)
+    _, segments = asr_model.recognize(audio_path, subtitle_path)
+    
+    # Generate default shuo.json
+    audio_rel_path = f"tasks/{task_id}/audio/audio.wav"
+    shuo_props = {
+        "captions": segments,
+        "audioUrl": audio_rel_path,
+        "images": [],
+        "fontSize": 90,
+        "centeredStart": True,
+        "randomOrientation": True,
+        "verticalFirstWord": True
+    }
+    
+    shuo_json_path = audio_dir / "shuo.json"
+    with open(shuo_json_path, 'w', encoding='utf-8') as f:
+        json.dump(shuo_props, f, ensure_ascii=False, indent=2)
+        
+    task_manager.update_status(1.0, "识别完成", "completed")
+    
+    return {"task_id": task_id, "shuo_props": shuo_props}
+
+@app.post("/api/audio_render")
+async def audio_render(
+    background_tasks: BackgroundTasks,
+    task_id: str = Form(...),
+    shuo_props: str = Form(...) # JSON string
+):
+    """Trigger rendering with (potentially modified) shuo_props."""
+    task_manager = TaskManager(task_id=task_id)
+    props = json.loads(shuo_props)
+    
+    # Save modified shuo.json
+    audio_dir = task_manager.get_dir("audio")
+    shuo_json_path = audio_dir / "shuo.json"
+    with open(shuo_json_path, 'w', encoding='utf-8') as f:
+        json.dump(props, f, ensure_ascii=False, indent=2)
+        
+    task_manager.update_status(0.5, "正在合成视频...", "processing")
+    
+    def render_job():
+        try:
+            video_output = task_manager.get_dir("videos") / "remotion_video.mp4"
+            captions = props.get("captions", [])
+            total_duration_ms = captions[-1]["endMs"] if captions else 3000
+            duration_frames = int((total_duration_ms / 1000) * 30) + 30
+            
+            run_remotion_render(shuo_json_path, video_output, duration_frames=duration_frames)
+            task_manager.update_status(1.0, "合成成功！", "completed")
+        except Exception as e:
+            task_manager.update_status(1.0, f"合成失败: {str(e)}", "error")
+
+    background_tasks.add_task(render_job)
+    return {"task_id": task_id, "message": "Render started."}
 
 if __name__ == "__main__":
     import uvicorn

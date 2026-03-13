@@ -9,14 +9,18 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 env_path = BASE_DIR / ".env"
 load_dotenv(dotenv_path=env_path)
 TASKS_DIR = BASE_DIR / "tasks"
+MODELS_DIR = BASE_DIR / "models"
 
-# Ensure tasks directory exists
+# Ensure directories exist
 TASKS_DIR.mkdir(parents=True, exist_ok=True)
+MODELS_DIR.mkdir(parents=True, exist_ok=True)
 
 # LLM Configuration
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
 LLM_MODEL = os.getenv("LLM_MODEL", "gpt-4-turbo")
+HF_TOKEN = os.getenv("HF_TOKEN", "")
+HF_ENDPOINT = os.getenv("HF_ENDPOINT", "")
 
 # ASR Configuration
 # Options: "funasr", "faster-whisper", "whisperx"
@@ -35,6 +39,8 @@ WHISPER_MODEL_SIZE = os.getenv("WHISPER_MODEL_SIZE", "base")
 # Device: "cuda", "cpu", "mps" (for Mac)
 WHISPER_DEVICE = os.getenv("WHISPER_DEVICE", "cpu")
 WHISPER_COMPUTE_TYPE = os.getenv("WHISPER_COMPUTE_TYPE", "float32")
+# 允许指定本地模型路径（如从魔塔下载到 models 目录下的路径）
+WHISPER_MODEL_PATH = os.getenv("WHISPER_MODEL_PATH", "")
 
 # Video & Audio processing config
 DEFAULT_AUDIO_SAMPLE_RATE = 16000

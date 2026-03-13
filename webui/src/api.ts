@@ -204,6 +204,38 @@ export const fetchResults = async (taskId: string): Promise<TaskResults> => {
   return await response.json();
 };
 
+export const transcribeAudio = async (file: File, asrEngine: string): Promise<{ task_id: string, shuo_props: any }> => {
+  const formData = new FormData();
+  formData.append('audio', file);
+  formData.append('asr_engine', asrEngine);
+
+  const response = await fetch(`${API_BASE_URL}/audio_transcribe`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    throw new Error(`Transcription failed: ${response.statusText}`);
+  }
+
+  return await response.json();
+};
+
+export const renderAudioVideo = async (taskId: string, shuoProps: any): Promise<void> => {
+  const formData = new FormData();
+  formData.append('task_id', taskId);
+  formData.append('shuo_props', JSON.stringify(shuoProps));
+
+  const response = await fetch(`${API_BASE_URL}/audio_render`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    throw new Error(`Render failed: ${response.statusText}`);
+  }
+};
+
 export const fetchTasks = async (): Promise<TaskOverview[]> => {
   const response = await fetch(`${API_BASE_URL}/tasks`);
 

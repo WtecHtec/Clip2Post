@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Loader2, CheckCircle2, AlertCircle, Video, FileText, Type, Sparkles, Settings as SettingsIcon } from 'lucide-react';
+import { Loader2, CheckCircle2, AlertCircle, Video, FileText, Type, Sparkles, Music, Settings as SettingsIcon } from 'lucide-react';
 import { uploadVideo, pollStatus, fetchResults, fetchTasks, generateTTSVideo } from './api';
 import type { TaskStatus, TaskResults, UploadOptions, TaskOverview, TTSOptions } from './api';
 
@@ -7,12 +7,13 @@ import { Sidebar } from './components/Sidebar';
 import { UploadForm } from './components/UploadForm';
 import { TTSVideoForm } from './components/TTSVideoForm';
 import { AgentVideoForm } from './components/AgentVideoForm';
+import { AudioVideoForm } from './components/AudioVideoForm';
 import { ResultsDisplay } from './components/ResultsDisplay';
 import { SettingsPanel } from './components/SettingsPanel';
 import type { LLMSettings } from './components/SettingsPanel';
 
 function App() {
-  const [workflowMode, setWorkflowMode] = useState<'video-to-post' | 'text-to-video'>('video-to-post');
+  const [workflowMode, setWorkflowMode] = useState<'video-to-post' | 'text-to-video' | 'audio-to-video'>('video-to-post');
   const [tasks, setTasks] = useState<TaskOverview[]>([]);
   const [file, setFile] = useState<File | null>(null);
   const [videoUrl, setVideoUrl] = useState<string>('');
@@ -210,6 +211,13 @@ function App() {
                 <FileText size={18} />
                 Text-to-Video
               </button>
+              <button
+                className={workflowMode === 'audio-to-video' ? 'segmented-btn active' : 'segmented-btn'}
+                onClick={() => { setWorkflowMode('audio-to-video'); resetToUpload(); }}
+              >
+                <Music size={18} />
+                Audio-to-Video
+              </button>
             </div>
           </div>
 
@@ -250,6 +258,14 @@ function App() {
                   onUpload={handleUpload}
                   disableUpload={!file && !videoUrl}
                   isErrorState={status?.state === 'error'}
+                />
+              ) : workflowMode === 'audio-to-video' ? (
+                <AudioVideoForm
+                  onTaskStarted={(id) => {
+                    setTaskId(id);
+                    loadTasks();
+                  }}
+                  disabled={status?.state === 'pending' || status?.state === 'processing'}
                 />
               ) : (
                 <>
