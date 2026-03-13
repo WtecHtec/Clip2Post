@@ -1,9 +1,6 @@
 import React, { useRef } from 'react';
 import { Upload } from 'lucide-react';
 import classNames from 'classnames';
-import { SettingsPanel } from './SettingsPanel';
-import type { LLMSettings } from './SettingsPanel';
-
 interface UploadFormProps {
     file: File | null;
     videoUrl: string;
@@ -27,8 +24,6 @@ interface UploadFormProps {
     };
     onOptionsChange: (options: any) => void;
 
-    // LLM Configurations
-    onLlmSettingsChange: (settings: LLMSettings) => void;
 
     // Actions
     onUpload: () => void;
@@ -47,7 +42,6 @@ export const UploadForm: React.FC<UploadFormProps> = ({
     onAsrChange,
     options,
     onOptionsChange,
-    onLlmSettingsChange,
     onUpload,
     disableUpload,
     isErrorState
@@ -148,7 +142,6 @@ export const UploadForm: React.FC<UploadFormProps> = ({
                     <h3 style={{ fontSize: '1.2rem', margin: 0 }}>Processing Configuration</h3>
                 </div>
 
-                <SettingsPanel onSettingsChange={onLlmSettingsChange} />
 
                 <div className="option-section">
                     <h4 className="section-title">🎙️ Audio & Speech (ASR)</h4>

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Loader2, CheckCircle2, AlertCircle, Video, FileText, Type, Sparkles } from 'lucide-react';
+import { Loader2, CheckCircle2, AlertCircle, Video, FileText, Type, Sparkles, Settings as SettingsIcon } from 'lucide-react';
 import { uploadVideo, pollStatus, fetchResults, fetchTasks, generateTTSVideo } from './api';
 import type { TaskStatus, TaskResults, UploadOptions, TaskOverview, TTSOptions } from './api';
 
@@ -8,6 +8,7 @@ import { UploadForm } from './components/UploadForm';
 import { TTSVideoForm } from './components/TTSVideoForm';
 import { AgentVideoForm } from './components/AgentVideoForm';
 import { ResultsDisplay } from './components/ResultsDisplay';
+import { SettingsPanel } from './components/SettingsPanel';
 import type { LLMSettings } from './components/SettingsPanel';
 
 function App() {
@@ -31,6 +32,7 @@ function App() {
   const [customPrompt, setCustomPrompt] = useState("");
   const [isAgentMode, setIsAgentMode] = useState(false);
 
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [llmSettings, setLlmSettings] = useState<LLMSettings>({ apiKey: '', baseUrl: '', model: '' });
   const [reGenerateOptions, setReGenerateOptions] = useState<Partial<TTSOptions> | null>(null);
 
@@ -170,9 +172,27 @@ function App() {
       <div className="main-content">
         <div className="app-container">
           <header className="header">
-            <h1>Clip2Post</h1>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem' }}>
+              <h1>Clip2Post</h1>
+              <button
+                className="icon-btn-secondary"
+                onClick={() => setIsSettingsOpen(true)}
+                title="LLM Settings"
+                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '8px', borderRadius: '10px', color: 'var(--text-secondary)', cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--accent-primary)'; e.currentTarget.style.borderColor = 'var(--accent-primary)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-secondary)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; }}
+              >
+                <SettingsIcon size={20} />
+              </button>
+            </div>
             <p>AI Video Configuration & Processing</p>
           </header>
+
+          <SettingsPanel
+            isOpen={isSettingsOpen}
+            onClose={() => setIsSettingsOpen(false)}
+            onSettingsChange={setLlmSettings}
+          />
 
           <div className="workflow-switcher" style={{ marginBottom: '2rem' }}>
             <div className="segmented-control">
@@ -227,7 +247,6 @@ function App() {
                     setGenerateHtml(opts.generateHtml);
                     setCustomPrompt(opts.customPrompt);
                   }}
-                  onLlmSettingsChange={setLlmSettings}
                   onUpload={handleUpload}
                   disableUpload={!file && !videoUrl}
                   isErrorState={status?.state === 'error'}
