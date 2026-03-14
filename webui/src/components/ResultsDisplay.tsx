@@ -1,6 +1,6 @@
 import React from 'react';
 import classNames from 'classnames';
-import { FileText, Image as ImageIcon, Layout, Video, Mic, Film, Sparkles } from 'lucide-react';
+import { FileText, Image as ImageIcon, Layout, Video, Mic, Film, Sparkles, Type } from 'lucide-react';
 import { getAssetUrl } from '../api';
 import type { TaskResults } from '../api';
 import { AIVideoCreator } from './AIVideoCreator';
@@ -10,8 +10,8 @@ interface ResultsDisplayProps {
     results: TaskResults;
     taskId: string;
     llmSettings: LLMSettings;
-    activeTab: 'subtitles' | 'markdown' | 'images' | 'html' | 'videos' | 'audio' | 'source' | 'recreate';
-    onTabChange: (tab: 'subtitles' | 'markdown' | 'images' | 'html' | 'videos' | 'audio' | 'source' | 'recreate') => void;
+    activeTab: 'subtitles' | 'cleantext' | 'markdown' | 'images' | 'html' | 'videos' | 'audio' | 'source' | 'recreate';
+    onTabChange: (tab: 'subtitles' | 'cleantext' | 'markdown' | 'images' | 'html' | 'videos' | 'audio' | 'source' | 'recreate') => void;
     onTaskCreated: (id: string) => void;
     onReGenerate?: (options: any) => void;
 }
@@ -71,6 +71,13 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({
                 >
                     <FileText size={16} style={{ display: 'inline', marginRight: '6px' }} />
                     Subtitles
+                </button>
+                <button
+                    className={classNames('tab-btn', { active: activeTab === 'cleantext' })}
+                    onClick={() => onTabChange('cleantext')}
+                >
+                    <Type size={16} style={{ display: 'inline', marginRight: '6px' }} />
+                    Raw Text
                 </button>
                 <button
                     className={classNames('tab-btn', { active: activeTab === 'markdown' })}
@@ -146,6 +153,18 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({
                         />
                     ) : (
                         <EmptyState message="No subtitles extracted." Icon={FileText} />
+                    )
+                )}
+
+                {activeTab === 'cleantext' && (
+                    results.subtitles ? (
+                        <textarea
+                            className="textarea-styled"
+                            readOnly
+                            value={results.subtitles.replace(/\[\d{2}:\d{2}:\d{2}\]\s*/g, '').replace(/\n\s*\n/g, '\n').trim()}
+                        />
+                    ) : (
+                        <EmptyState message="No subtitles to clean." Icon={Type} />
                     )
                 )}
 

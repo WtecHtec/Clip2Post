@@ -271,7 +271,7 @@ export const TTSVideoForm: React.FC<TTSVideoFormProps> = ({
                                         <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Temperature: {temperature}</span>
                                     </div>
                                     <input
-                                        type="range" min="0.1" max="1.0" step="0.05"
+                                        type="range" min="0.0" max="1.0" step="0.05"
                                         value={temperature}
                                         onChange={(e) => { setTemperature(parseFloat(e.target.value)); setPreset('custom'); }}
                                         style={{ width: '100%', accentColor: 'var(--accent-primary)' }}

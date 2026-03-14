@@ -20,7 +20,7 @@ function App() {
   const [taskId, setTaskId] = useState<string | null>(null);
   const [status, setStatus] = useState<TaskStatus | any>(null);
   const [results, setResults] = useState<TaskResults | null>(null);
-  const [activeTab, setActiveTab] = useState<'subtitles' | 'markdown' | 'images' | 'html' | 'videos' | 'audio' | 'source' | 'recreate'>('subtitles');
+  const [activeTab, setActiveTab] = useState<'subtitles' | 'cleantext' | 'markdown' | 'images' | 'html' | 'videos' | 'audio' | 'source' | 'recreate'>('subtitles');
   const [isDragging, setIsDragging] = useState(false);
 
   // Upload options (managed here or passed to UploadForm, keeping top-level state is okay for easy pass down)

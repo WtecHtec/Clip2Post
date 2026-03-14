@@ -77,13 +77,16 @@ class ChatTTSProcessor:
             # Determine refinement prompt based on content
             if refine_text_flag:
                 has_manual_tags = bool(re.search(r'\[(laugh|laughter|uv_break|oral_.*?)\]', processed_seg))
-                refine_prompt = '[oral_2][laugh_0][break_4]' if not has_manual_tags else ''
+                refine_prompt = '[oral_0][laugh_0][break_4]' if not has_manual_tags else ''
             else:
                 refine_prompt = ''
             
+            # Clamp temperature to avoid division by zero, 0.0 means greedy
+            safe_temp = max(0.00001, temperature)
+            
             params_refine_text = self.chat.RefineTextParams(
                 prompt=refine_prompt,
-                temperature=temperature,
+                temperature=safe_temp,
                 top_P=top_p,
                 top_K=top_k
             )
@@ -102,7 +105,7 @@ class ChatTTSProcessor:
             params_infer_code = self.chat.InferCodeParams(
                 spk_emb=spk_smp,
                 prompt=speed_prompt,
-                temperature=temperature,
+                temperature=safe_temp,
                 top_P=top_p,
                 top_K=top_k
             )
