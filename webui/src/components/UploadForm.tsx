@@ -179,6 +179,17 @@ export const UploadForm: React.FC<UploadFormProps> = ({
                             />
                             <span>WhisperX (精确词级对齐时间戳)</span>
                         </label>
+                        <label className="radio-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: 'var(--text-secondary)' }}>
+                            <input
+                                type="radio"
+                                name="asrEngine"
+                                value="qwen3-asr"
+                                checked={asrEngine === "qwen3-asr"}
+                                onChange={() => onAsrChange("qwen3-asr")}
+                                style={{ accentColor: 'var(--accent-primary)', width: '16px', height: '16px' }}
+                            />
+                            <span>Qwen3-ASR (多语种支持返回时间戳)</span>
+                        </label>
                     </div>
                 </div>
 

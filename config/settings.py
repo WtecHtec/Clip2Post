@@ -23,7 +23,7 @@ HF_TOKEN = os.getenv("HF_TOKEN", "")
 HF_ENDPOINT = os.getenv("HF_ENDPOINT", "")
 
 # ASR Configuration
-# Options: "funasr", "faster-whisper", "whisperx"
+# Options: "funasr", "faster-whisper", "whisperx", "qwen3-asr"
 ASR_TYPE = os.getenv("ASR_TYPE", "funasr")
 
 # FunASR Configuration
@@ -41,6 +41,10 @@ WHISPER_DEVICE = os.getenv("WHISPER_DEVICE", "cpu")
 WHISPER_COMPUTE_TYPE = os.getenv("WHISPER_COMPUTE_TYPE", "float32")
 # 允许指定本地模型路径（如从魔塔下载到 models 目录下的路径）
 WHISPER_MODEL_PATH = os.getenv("WHISPER_MODEL_PATH", "")
+
+# Qwen3-ASR Configuration
+QWEN_ASR_MODEL = os.getenv("QWEN_ASR_MODEL", "Qwen/Qwen3-ASR-0.6B")
+QWEN_FORCED_ALIGNER = os.getenv("QWEN_FORCED_ALIGNER", "Qwen/Qwen3-ForcedAligner-0.6B")
 
 # Video & Audio processing config
 DEFAULT_AUDIO_SAMPLE_RATE = 16000

@@ -110,7 +110,7 @@ export const AudioVideoForm: React.FC<AudioVideoFormProps> = ({ onTaskStarted, d
                 <div className="option-section">
                     <h4 className="section-title">识别引擎</h4>
                     <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
-                        {['funasr', 'faster-whisper', 'whisperx'].map(engine => (
+                        {['funasr', 'faster-whisper', 'whisperx', 'qwen3-asr'].map(engine => (
                             <label key={engine} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
                                 <input
                                     type="radio"
