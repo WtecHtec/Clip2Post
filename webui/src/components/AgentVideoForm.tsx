@@ -267,7 +267,7 @@ export const AgentVideoForm: React.FC<AgentVideoFormProps> = ({ llmSettings, onT
                             <Mic size={18} /> 语音引擎
                         </h4>
                         <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
-                            {['edge', 'chattts', 'kokoro'].map(engine => (
+                            {['edge', 'chattts', 'kokoro', 'omnivoice'].map(engine => (
                                 <label key={engine} style={{
                                     cursor: 'pointer',
                                     padding: '0.5rem 1rem',

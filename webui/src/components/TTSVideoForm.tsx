@@ -178,6 +178,17 @@ export const TTSVideoForm: React.FC<TTSVideoFormProps> = ({
                             />
                             <span>ChatTTS (Natural Conversational)</span>
                         </label>
+                        <label className="radio-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                            <input
+                                type="radio"
+                                name="ttsEngine"
+                                value="omnivoice"
+                                checked={ttsEngine === 'omnivoice'}
+                                onChange={() => { setTtsEngine('omnivoice'); setVoice(''); }}
+                                style={{ accentColor: 'var(--accent-primary)' }}
+                            />
+                            <span>OmniVoice (High Quality Zero-Shot)</span>
+                        </label>
                     </div>
 
                     <div style={{ flex: 1, minWidth: '200px' }}>
@@ -202,7 +213,7 @@ export const TTSVideoForm: React.FC<TTSVideoFormProps> = ({
                         </div>
                         <input
                             type="text"
-                            placeholder={ttsEngine === 'kokoro' ? "e.g. af_heart, jm_kama..." : (ttsEngine === 'chattts' ? "Seed number or empty" : "e.g. zh-CN-XiaoxiaoNeural...")}
+                            placeholder={ttsEngine === 'kokoro' ? "e.g. af_heart, jm_kama..." : (ttsEngine === 'chattts' ? "Seed number or empty" : (ttsEngine === 'omnivoice' ? "e.g. female, british accent" : "e.g. zh-CN-XiaoxiaoNeural..."))}
                             value={voice}
                             onChange={(e) => setVoice(e.target.value)}
                             style={{
@@ -325,6 +336,9 @@ export const TTSVideoForm: React.FC<TTSVideoFormProps> = ({
                             )}
                             {ttsEngine === 'kokoro' && (
                                 <p style={{ margin: 0 }}>💡 <b>Kokoro:</b> 输入声音 ID，如 <i>af_heart</i>, <i>am_adam</i>。</p>
+                            )}
+                            {ttsEngine === 'omnivoice' && (
+                                <p style={{ margin: 0 }}>💡 <b>OmniVoice:</b> 输入声音风格，如 <i>female, low pitch</i>，用逗号分隔。</p>
                             )}
                         </div>
                     </div>

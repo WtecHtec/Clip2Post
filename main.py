@@ -186,6 +186,9 @@ def process_tts_render_pipeline(
                 temperature=temperature, top_p=top_p, top_k=top_k, 
                 speed=speed, refine_text_flag=refine_text
             )
+        elif tts_engine == "omnivoice":
+            from tts.omnivoice_processor import run_omnivoice_tts_sync
+            audio_path, json_path = run_omnivoice_tts_sync(text, str(output_base), voice_instruct=voice)
         else:
             voice = voice or "zh-CN-XiaoxiaoNeural"
             audio_path, json_path = run_tts_sync(text, str(output_base), voice=voice)
@@ -498,6 +501,9 @@ def process_agent_video_pipeline(
                 temperature=temperature, top_p=top_p, top_k=top_k, 
                 speed=speed, refine_text_flag=refine_text
             )
+        elif tts_engine == "omnivoice":
+            from tts.omnivoice_processor import run_omnivoice_tts_sync
+            audio_path, json_path = run_omnivoice_tts_sync(text, str(output_base), voice_instruct=voice)
         else:
             voice = voice or "zh-CN-XiaoxiaoNeural"
             audio_path, json_path = run_tts_sync(text, str(output_base), voice=voice)
