@@ -199,6 +199,11 @@ def process_tts_render_pipeline(
         with open(json_path, 'r', encoding='utf-8') as f:
             captions = json.load(f)
             
+        import re
+        for c in captions:
+            if "text" in c:
+                c["text"] = re.sub(r'\[.*?\]\s*', '', c["text"]).strip()
+            
         # Use symlink to root tasks directory to avoid copying
         # (handeled automatically by RemotionRenderer)
         audio_rel_path = f"tasks/{task_id}/audio/{Path(audio_path).name}"
@@ -513,6 +518,11 @@ def process_agent_video_pipeline(
         # 2. Match Images
         with open(json_path, 'r', encoding='utf-8') as f:
             captions = json.load(f)
+            
+        import re
+        for c in captions:
+            if "text" in c:
+                c["text"] = re.sub(r'\[.*?\]\s*', '', c["text"]).strip()
             
         llm_generator = ArticleGenerator(
             api_key=llm_settings.get("apiKey") if llm_settings else None,

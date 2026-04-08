@@ -245,7 +245,7 @@ export const TTSVideoForm: React.FC<TTSVideoFormProps> = ({
                                         <option value="default">Default</option>
                                         <option value="mature_male">Mature Male (成熟男声)</option>
                                         <option value="terror">Terror (恐怖类型)</option>
-                                        <option value="comedy">Comedy (脱口秀 / 搞笑口播)</option>
+                                        <option value="comedy">Comedy (脱口秀 /搞笑口播)</option>
                                         <option value="storyteller">Storyteller (说书人)</option>
                                         <option value="science">Science (知识科普型)</option>
                                         <option value="mystery">Mystery (悬疑故事型)</option>
@@ -262,6 +262,42 @@ export const TTSVideoForm: React.FC<TTSVideoFormProps> = ({
                                         />
                                         <span>Strictly follow text (Literal mode)</span>
                                     </label>
+                                </div>
+                            </div>
+                        )}
+
+                        {ttsEngine === 'omnivoice' && (
+                            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginTop: '1rem' }}>
+                                <div style={{ flex: 1, minWidth: '150px' }}>
+                                    <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '0.5rem' }}>Voice Style Preset (声音风格预设)</span>
+                                    <select
+                                        value={voice}
+                                        onChange={(e) => setVoice(e.target.value)}
+                                        style={{
+                                            width: '100%',
+                                            padding: '0.8rem',
+                                            borderRadius: '8px',
+                                            border: '1px solid var(--border-color)',
+                                            background: 'var(--bg-secondary)',
+                                            color: 'var(--text-primary)'
+                                        }}
+                                    >
+                                        <option value="" disabled>请选择或在上方自定义输入</option>
+                                        <option value="女">女声默认 (女)</option>
+                                        <option value="男">男声默认 (男)</option>
+                                        <option value="女，低音调">女声 - 低音 (女，低音调)</option>
+                                        <option value="男，低音调">男声 - 低音 (男，低音调)</option>
+                                        <option value="女，高音调">女声 - 高音 (女，高音调)</option>
+                                        <option value="男，高音调">男声 - 高音 (男，高音调)</option>
+                                        <option value="女，东北话">女声 - 东北话 (女，东北话)</option>
+                                        <option value="男，东北话">男声 - 东北话 (男，东北话)</option>
+                                        <option value="女，四川话">女声 - 四川话 (女，四川话)</option>
+                                        <option value="男，四川话">男声 - 四川话 (男，四川话)</option>
+                                        <option value="女，耳语">女声 - 耳语 (女，耳语)</option>
+                                        <option value="男，耳语">男声 - 耳语 (男，耳语)</option>
+                                        <option value="儿童">儿童声 (儿童)</option>
+                                        <option value="老年">老年声 (老年)</option>
+                                    </select>
                                 </div>
                             </div>
                         )}
@@ -338,7 +374,7 @@ export const TTSVideoForm: React.FC<TTSVideoFormProps> = ({
                                 <p style={{ margin: 0 }}>💡 <b>Kokoro:</b> 输入声音 ID，如 <i>af_heart</i>, <i>am_adam</i>。</p>
                             )}
                             {ttsEngine === 'omnivoice' && (
-                                <p style={{ margin: 0 }}>💡 <b>OmniVoice:</b> 输入声音风格，如 <i>female, low pitch</i>，用逗号分隔。</p>
+                                <p style={{ margin: 0 }}>💡 <b>OmniVoice:</b> 输入声音风格，中文如 <i>女，低音调</i>（全角逗号分隔），英文如 <i>female, low pitch</i>。</p>
                             )}
                         </div>
                     </div>

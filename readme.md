@@ -90,3 +90,17 @@ npm install
 
 ---
 Made with ❤️ by WtecHtec.
+
+
+# tts OmniVoice
+
+支持关键词：
+
+ [laughter]、
+ [sigh]、
+ [sniff]、
+ [confirmation-en]、
+ [question-en]、
+ [question-ah/oh/ei/yi]、
+ [surprise-ah/oh/wa/yo]、
+ [dissatisfaction-hnn]
