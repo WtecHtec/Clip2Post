@@ -281,20 +281,89 @@ export const AgentVideoForm: React.FC<AgentVideoFormProps> = ({ llmSettings, onT
                                 </label>
                             ))}
                         </div>
-                        <input
-                            type="text"
-                            placeholder="Voice Name / Seed"
-                            value={voice}
-                            onChange={(e) => setVoice(e.target.value)}
-                            style={{
-                                width: '100%',
-                                padding: '0.8rem',
-                                borderRadius: '8px',
-                                border: '1px solid rgba(255,255,255,0.1)',
-                                background: 'rgba(0,0,0,0.2)',
-                                color: 'white'
-                            }}
-                        />
+                        {ttsEngine === "edge" ? (
+                            <select
+                                value={voice}
+                                onChange={(e) => setVoice(e.target.value)}
+                                style={{
+                                    width: '100%',
+                                    padding: '0.8rem',
+                                    borderRadius: '8px',
+                                    border: '1px solid rgba(255,255,255,0.1)',
+                                    background: 'rgba(0,0,0,0.2)',
+                                    color: 'white',
+                                    outline: 'none'
+                                }}
+                            >
+                                <option value="zh-CN-XiaoxiaoNeural">晓晓 (女)</option>
+                                <option value="zh-CN-YunxiNeural">云希 (男)</option>
+                                <option value="zh-CN-YunjianNeural">云健 (男)</option>
+                                <option value="zh-CN-XiaoyiNeural">晓伊 (女)</option>
+                            </select>
+                        ) : ttsEngine === "kokoro" ? (
+                            <select
+                                value={voice}
+                                onChange={(e) => setVoice(e.target.value)}
+                                style={{
+                                    width: '100%',
+                                    padding: '0.8rem',
+                                    borderRadius: '8px',
+                                    border: '1px solid rgba(255,255,255,0.1)',
+                                    background: 'rgba(0,0,0,0.2)',
+                                    color: 'white',
+                                    outline: 'none'
+                                }}
+                            >
+                                <option value="af_heart">af_heart (默认)</option>
+                                <option value="af_alloy">af_alloy</option>
+                                <option value="am_adam">am_adam</option>
+                            </select>
+                        ) : ttsEngine === "omnivoice" ? (
+                            <select
+                                value={voice}
+                                onChange={(e) => setVoice(e.target.value)}
+                                style={{
+                                    width: '100%',
+                                    padding: '0.8rem',
+                                    borderRadius: '8px',
+                                    border: '1px solid rgba(255,255,255,0.1)',
+                                    background: 'rgba(0,0,0,0.2)',
+                                    color: 'white',
+                                    outline: 'none'
+                                }}
+                            >
+                                <option value="女">女声默认 (女)</option>
+                                <option value="男">男声默认 (男)</option>
+                                <option value="女，低音调">女声 - 低音 (女，低音调)</option>
+                                <option value="男，低音调">男声 - 低音 (男，低音调)</option>
+                                <option value="女，高音调">女声 - 高音 (女，高音调)</option>
+                                <option value="男，高音调">男声 - 高音 (男，高音调)</option>
+                                <option value="女，东北话">女声 - 东北话 (女，东北话)</option>
+                                <option value="男，东北话">男声 - 东北话 (男，东北话)</option>
+                                <option value="女，四川话">女声 - 四川话 (女，四川话)</option>
+                                <option value="男，四川话">男声 - 四川话 (男，四川话)</option>
+                                <option value="女，耳语">女声 - 耳语 (女，耳语)</option>
+                                <option value="男，耳语">男声 - 耳语 (男，耳语)</option>
+                                <option value="儿童">儿童声 (儿童)</option>
+                                <option value="女，老年">女声 - 老年 (女，老年)</option>
+                                <option value="男，老年">男声 - 老年 (男，老年)</option>
+                            </select>
+                        ) : (
+                            <input
+                                type="text"
+                                placeholder="Voice Name / Seed"
+                                value={voice}
+                                onChange={(e) => setVoice(e.target.value)}
+                                style={{
+                                    width: '100%',
+                                    padding: '0.8rem',
+                                    borderRadius: '8px',
+                                    border: '1px solid rgba(255,255,255,0.1)',
+                                    background: 'rgba(0,0,0,0.2)',
+                                    color: 'white'
+                                }}
+                            />
+                        )}
                     </div>
 
                     <div>
