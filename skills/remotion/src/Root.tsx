@@ -3,6 +3,7 @@ import { MyAnimation as BarChartAnimation } from '../skills/remotion/rules/asset
 import { MyAnimation as TypewriterAnimation } from '../skills/remotion/rules/assets/text-animations-typewriter';
 import { MyAnimation as WordHighlightAnimation } from '../skills/remotion/rules/assets/text-animations-word-highlight';
 import { MyScene, MySceneSchema } from './MyScene';
+import { ImageScene, ImageSceneSchema } from './ImageScene';
 
 export const RemotionRoot = () => {
 	return (
@@ -51,6 +52,22 @@ export const RemotionRoot = () => {
 					],
 					backgroundColor: '#1a1a1a',
 					textColor: '#ffd700',
+				}}
+			/>
+			<Composition
+				id="ImageScene"
+				component={ImageScene}
+				durationInFrames={150}
+				fps={30}
+				width={1080}
+				height={1920}
+				schema={ImageSceneSchema}
+				defaultProps={{
+					captions: [
+						{ text: '这是一个图片下方', startMs: 0, endMs: 2000 },
+						{ text: '显示字幕的全新模式', startMs: 2100, endMs: 5000 },
+					],
+					imageUrl: 'tasks/dummy_image.jpg',
 				}}
 			/>
 		</>

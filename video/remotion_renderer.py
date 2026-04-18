@@ -24,7 +24,7 @@ class RemotionRenderer:
             except Exception as e:
                 print(f"      Warning: Failed to create symlink: {e}")
 
-    def render(self, props_path, output_path, duration_frames=300):
+    def render(self, props_path, output_path, duration_frames=300, composition_id="MyScene"):
         """
         Render video using Remotion CLI.
         """
@@ -36,7 +36,7 @@ class RemotionRenderer:
 
         cmd = [
             "npx", "remotion", "render",
-            "src/index.ts", "MyScene",
+            "src/index.ts", composition_id,
             str(output_path),
             f"--props={str(props_path)}",
             f"--duration={duration_frames}"
@@ -60,8 +60,8 @@ class RemotionRenderer:
             print(f"      Error during Remotion render: {e.stderr}")
             raise e
 
-def run_remotion_render(props_path, output_path, duration_frames=300):
+def run_remotion_render(props_path, output_path, duration_frames=300, composition_id="MyScene"):
     # Default path relative to project root
     remotion_dir = Path(__file__).parent.parent / "skills" / "remotion"
     renderer = RemotionRenderer(remotion_dir)
-    return renderer.render(props_path, output_path, duration_frames)
+    return renderer.render(props_path, output_path, duration_frames, composition_id)

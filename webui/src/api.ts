@@ -251,3 +251,34 @@ export const getAssetUrl = (path: string): string => {
   if (path.startsWith('http')) return path;
   return `http://localhost:8000${path}`;
 };
+
+export const generateImageVideo = async (options: TTSOptions, image: File): Promise<string> => {
+  const formData = new FormData();
+  formData.append('text', options.text);
+  formData.append('tts_engine', options.ttsEngine);
+  formData.append('voice', options.voice);
+  if (options.temperature !== undefined) formData.append('temperature', String(options.temperature));
+  if (options.top_p !== undefined) formData.append('top_p', String(options.top_p));
+  if (options.top_k !== undefined) formData.append('top_k', String(options.top_k));
+  if (options.speed !== undefined) formData.append('speed', String(options.speed));
+  if (options.refine_text !== undefined) formData.append('refine_text', String(options.refine_text));
+
+  formData.append('image', image);
+
+  const response = await fetch(`${API_BASE_URL}/image_video`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    let errorMessage = response.statusText;
+    try {
+      const errorData = await response.json();
+      if (errorData.error) errorMessage = errorData.error;
+    } catch (e) { }
+    throw new Error(`Image Video generation failed: ${errorMessage}`);
+  }
+
+  const data = await response.json();
+  return data.task_id;
+};

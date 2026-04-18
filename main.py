@@ -649,6 +649,134 @@ async def generate_agent_video(
     )
     
     return {"task_id": task_id, "message": "Agent Video Task started.", "generated_text": final_text}
+
+def process_image_video_pipeline(
+    task_id: str,
+    text: str,
+    tts_engine: str = "edge",
+    voice: str = "",
+    temperature: float = 0.3,
+    top_p: float = 0.7,
+    top_k: int = 20,
+    speed: float = 5,
+    refine_text: bool = True
+):
+    """Background task for Image-to-Video generation using ImageScene Remotion layout."""
+    task_manager = TaskManager(task_id=task_id)
+    try:
+        task_manager.update_status(0.1, f"正在生成语音 ({tts_engine})...", "processing", task_type="image_video")
+        
+        audio_dir = task_manager.get_dir("audio")
+        output_base = audio_dir / "tts_output"
+        
+        # 1. Generate TTS
+        if tts_engine == "kokoro":
+            voice = voice or "af_heart"
+            from tts.kokoro_processor import run_kokoro_tts_sync
+            audio_path, json_path = run_kokoro_tts_sync(text, str(output_base), voice=voice)
+        elif tts_engine == "chattts":
+            from tts.chattts_processor import run_chattts_sync
+            audio_path, json_path = run_chattts_sync(
+                text, str(output_base), voice=voice,
+                temperature=temperature, top_p=top_p, top_k=top_k, 
+                speed=speed, refine_text_flag=refine_text
+            )
+        elif tts_engine == "omnivoice":
+            from tts.omnivoice_processor import run_omnivoice_tts_sync
+            audio_path, json_path = run_omnivoice_tts_sync(text, str(output_base), voice_instruct=voice)
+        else:
+            voice = voice or "zh-CN-XiaoxiaoNeural"
+            from tts.processor import run_tts_sync
+            audio_path, json_path = run_tts_sync(text, str(output_base), voice=voice)
+
+        task_manager.update_status(0.5, "正在配置视频布局...", "processing")
+        
+        with open(json_path, 'r', encoding='utf-8') as f:
+            captions = json.load(f)
+            
+        import re
+        for c in captions:
+            if "text" in c:
+                c["text"] = re.sub(r'\[.*?\]\s*', '', c["text"]).strip()
+        
+        # Determine image
+        images_dir = task_manager.get_dir("images")
+        image_files = list(images_dir.glob("*"))
+        if not image_files:
+            raise FileNotFoundError("未找到上传的图片！")
+            
+        img_name = image_files[0].name
+        
+        # 2. Prepare Remotion Props for ImageScene
+        audio_rel_path = f"tasks/{task_id}/audio/{Path(audio_path).name}"
+        img_rel_path = f"tasks/{task_id}/images/{img_name}"
+        
+        props = {
+            "captions": captions,
+            "imageUrl": img_rel_path,
+            "audioUrl": audio_rel_path,
+            "fontSize": 90
+        }
+        
+        shuo_json_path = audio_dir / "shuo.json"
+        with open(shuo_json_path, 'w', encoding='utf-8') as f:
+            json.dump(props, f, ensure_ascii=False, indent=2)
+            
+        task_manager.update_status(0.6, "正在合成视频...", "processing")
+        
+        video_output = task_manager.get_dir("videos") / "remotion_video.mp4"
+        total_duration_ms = captions[-1]["endMs"] if captions else 3000
+        duration_frames = int((total_duration_ms / 1000) * 30) + 30
+        
+        from video.remotion_renderer import run_remotion_render
+        run_remotion_render(shuo_json_path, video_output, duration_frames=duration_frames, composition_id="ImageScene")
+        
+        task_manager.update_status(1.0, "合成成功！", "completed")
+        
+    except Exception as e:
+        import traceback
+        task_manager.update_status(1.0, f"合成失败: {str(e)}", "error")
+        print(traceback.format_exc())
+
+@app.post("/api/image_video")
+async def generate_image_video(
+    background_tasks: BackgroundTasks,
+    image: UploadFile = File(...),
+    text: str = Form(...),
+    tts_engine: str = Form("edge"),
+    voice: str = Form(""),
+    temperature: float = Form(0.3),
+    top_p: float = Form(0.7),
+    top_k: int = Form(20),
+    speed: float = Form(1.0),
+    refine_text: bool = Form(True)
+):
+    """Endpoint for Image-to-Video mode generation."""
+    task_manager = TaskManager()
+    task_id = task_manager.task_id
+    task_manager.update_status(0.01, "初始化图文转换任务...", "processing", task_type="image_video")
+    
+    # Save uploaded image
+    images_dir = task_manager.get_dir("images")
+    file_path = images_dir / image.filename
+    with open(file_path, "wb") as f:
+        f.write(await image.read())
+
+    # Start pipeline
+    background_tasks.add_task(
+        process_image_video_pipeline,
+        task_id=task_id,
+        text=text,
+        tts_engine=tts_engine,
+        voice=voice,
+        temperature=temperature,
+        top_p=top_p,
+        top_k=top_k,
+        speed=speed,
+        refine_text=refine_text
+    )
+    
+    return {"task_id": task_id, "message": "Image Video Task started."}
     
 @app.post("/api/audio_transcribe")
 async def audio_transcribe(

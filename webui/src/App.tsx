@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Loader2, CheckCircle2, AlertCircle, Video, FileText, Type, Sparkles, Music, Settings as SettingsIcon } from 'lucide-react';
+import { Loader2, CheckCircle2, AlertCircle, Video, FileText, Type, Sparkles, Music, Settings as SettingsIcon, Image as ImageIcon } from 'lucide-react';
 import { uploadVideo, pollStatus, fetchResults, fetchTasks, generateTTSVideo } from './api';
 import type { TaskStatus, TaskResults, UploadOptions, TaskOverview, TTSOptions } from './api';
 
@@ -8,12 +8,13 @@ import { UploadForm } from './components/UploadForm';
 import { TTSVideoForm } from './components/TTSVideoForm';
 import { AgentVideoForm } from './components/AgentVideoForm';
 import { AudioVideoForm } from './components/AudioVideoForm';
+import { ImageVideoForm } from './components/ImageVideoForm';
 import { ResultsDisplay } from './components/ResultsDisplay';
 import { SettingsPanel } from './components/SettingsPanel';
 import type { LLMSettings } from './components/SettingsPanel';
 
 function App() {
-  const [workflowMode, setWorkflowMode] = useState<'video-to-post' | 'text-to-video' | 'audio-to-video'>('video-to-post');
+  const [workflowMode, setWorkflowMode] = useState<'video-to-post' | 'text-to-video' | 'audio-to-video' | 'image-to-video'>('video-to-post');
   const [tasks, setTasks] = useState<TaskOverview[]>([]);
   const [file, setFile] = useState<File | null>(null);
   const [videoUrl, setVideoUrl] = useState<string>('');
@@ -144,6 +145,21 @@ function App() {
     }
   };
 
+  const handleImageVideoGenerate = async (options: TTSOptions, image: File) => {
+    try {
+      setStatus({ progress: 0.1, desc: '初始化图文视频...', state: 'pending' });
+      setResults(null);
+      // We will need to import generateImageVideo from API
+      const { generateImageVideo } = await import('./api');
+      const newTaskId = await generateImageVideo(options, image);
+      setTaskId(newTaskId);
+      loadTasks();
+    } catch (err) {
+      console.error(err);
+      setStatus({ progress: 0, desc: '生成失败', state: 'error' });
+    }
+  };
+
   const handleReGenerate = (options: TTSOptions) => {
     setWorkflowMode('text-to-video');
     setReGenerateOptions(options);
@@ -218,6 +234,13 @@ function App() {
                 <Music size={18} />
                 Audio-to-Video
               </button>
+              <button
+                className={workflowMode === 'image-to-video' ? 'segmented-btn active' : 'segmented-btn'}
+                onClick={() => { setWorkflowMode('image-to-video'); resetToUpload(); }}
+              >
+                <ImageIcon size={18} />
+                Image-to-Video
+              </button>
             </div>
           </div>
 
@@ -265,6 +288,11 @@ function App() {
                     setTaskId(id);
                     loadTasks();
                   }}
+                  disabled={status?.state === 'pending' || status?.state === 'processing'}
+                />
+              ) : workflowMode === 'image-to-video' ? (
+                <ImageVideoForm
+                  onGenerate={handleImageVideoGenerate}
                   disabled={status?.state === 'pending' || status?.state === 'processing'}
                 />
               ) : (
