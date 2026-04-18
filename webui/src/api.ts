@@ -59,6 +59,7 @@ export interface TTSOptions {
   refine_text?: boolean;
   coverTitle?: string;
   coverImage?: File;
+  bgm?: string;
 }
 
 export const uploadVideo = async (options: UploadOptions, file?: File | null): Promise<string> => {
@@ -108,6 +109,7 @@ export const generateTTSVideo = async (options: TTSOptions): Promise<string> => 
   if (options.refine_text !== undefined) formData.append('refine_text', String(options.refine_text));
   if (options.coverTitle) formData.append('cover_title', options.coverTitle);
   if (options.coverImage) formData.append('cover_image', options.coverImage);
+  if (options.bgm) formData.append('bgm', options.bgm);
 
   const response = await fetch(`${API_BASE_URL}/tts_render`, {
     method: 'POST',
@@ -139,6 +141,7 @@ export const generateAgentVideo = async (
   if (options.top_k !== undefined) formData.append('top_k', String(options.top_k));
   if (options.speed !== undefined) formData.append('speed', String(options.speed));
   if (options.refine_text !== undefined) formData.append('refine_text', String(options.refine_text));
+  if (options.bgm) formData.append('bgm', options.bgm);
 
   formData.append('image_descriptions', JSON.stringify(imageDescriptions));
   images.forEach(file => {
@@ -267,6 +270,7 @@ export const generateImageVideo = async (options: TTSOptions, image: File): Prom
   if (options.speed !== undefined) formData.append('speed', String(options.speed));
   if (options.refine_text !== undefined) formData.append('refine_text', String(options.refine_text));
   if (options.coverTitle) formData.append('cover_title', options.coverTitle);
+  if (options.bgm) formData.append('bgm', options.bgm);
 
   formData.append('image', image);
 
@@ -286,4 +290,16 @@ export const generateImageVideo = async (options: TTSOptions, image: File): Prom
 
   const data = await response.json();
   return data.task_id;
+};
+
+export const getBgms = async (): Promise<string[]> => {
+  try {
+    const res = await fetch(`${API_BASE_URL}/bgms`);
+    if (!res.ok) throw new Error('Network error');
+    const data = await res.json();
+    return data.bgms || [];
+  } catch (error) {
+    console.error('Error fetching BGMs:', error);
+    return [];
+  }
 };

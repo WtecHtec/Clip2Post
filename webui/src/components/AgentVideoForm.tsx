@@ -31,6 +31,12 @@ export const AgentVideoForm: React.FC<AgentVideoFormProps> = ({ llmSettings, onT
     const [topK, setTopK] = useState(20);
     const [speed, setSpeed] = useState(1.0);
     const [refineText, setRefineText] = useState(true);
+    const [bgm, setBgm] = useState<string>('');
+    const [bgmList, setBgmList] = useState<string[]>([]);
+
+    React.useEffect(() => {
+        import('../api').then(mod => mod.getBgms().then(setBgmList));
+    }, []);
 
     const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
@@ -100,7 +106,8 @@ export const AgentVideoForm: React.FC<AgentVideoFormProps> = ({ llmSettings, onT
                 top_p: topP,
                 top_k: topK,
                 speed,
-                refine_text: refineText
+                refine_text: refineText,
+                bgm: bgm || undefined
             };
             const imageDescriptions = images.map(img => ({
                 id: img.file.name,

@@ -27,6 +27,7 @@ export const ImageSceneSchema = z.object({
     audioUrl: z.string().optional(),
     fontSize: z.number().optional().default(80),
     coverTitle: z.string().optional(),
+    bgm: z.string().optional(),
 });
 
 export const ImageScene: React.FC<z.infer<typeof ImageSceneSchema>> = ({
@@ -35,6 +36,7 @@ export const ImageScene: React.FC<z.infer<typeof ImageSceneSchema>> = ({
     audioUrl,
     fontSize = 80,
     coverTitle,
+    bgm,
 }) => {
     const rawFrame = useCurrentFrame();
     const { fps, width: videoWidth, height: videoHeight } = useVideoConfig();
@@ -100,6 +102,11 @@ export const ImageScene: React.FC<z.infer<typeof ImageSceneSchema>> = ({
                     }}
                 />
             </AbsoluteFill>
+
+            {/* BGM Render */}
+            {bgm && (
+                <Audio src={bgm.startsWith('http') ? bgm : staticFile(`bgm/${bgm}`)} volume={0.15} />
+            )}
 
             {/* Subtitle Overlay */}
             <AbsoluteFill

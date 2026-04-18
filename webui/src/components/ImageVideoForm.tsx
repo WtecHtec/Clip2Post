@@ -25,6 +25,12 @@ export const ImageVideoForm: React.FC<ImageVideoFormProps> = ({
     const [ttsEngine, setTtsEngine] = useState("edge");
     const [voice, setVoice] = useState("zh-CN-XiaoxiaoNeural");
     const [coverTitle, setCoverTitle] = useState("");
+    const [bgm, setBgm] = useState<string>('');
+    const [bgmList, setBgmList] = useState<string[]>([]);
+
+    useEffect(() => {
+        import('../api').then(mod => mod.getBgms().then(setBgmList));
+    }, []);
 
     // Advanced TTS settings
     const [temperature, setTemperature] = useState(0.3);
@@ -76,7 +82,8 @@ export const ImageVideoForm: React.FC<ImageVideoFormProps> = ({
             top_k: topK,
             speed,
             refine_text: refineText,
-            coverTitle
+            coverTitle,
+            bgm: bgm || undefined
         }, image);
     };
 
@@ -167,6 +174,23 @@ export const ImageVideoForm: React.FC<ImageVideoFormProps> = ({
                         fontSize: '1rem',
                     }}
                 />
+            </div>
+
+            <div className="form-group" style={{ marginBottom: '1.5rem', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                <h4 style={{ marginBottom: '1rem', fontSize: '1rem' }}>🎵 视频背景音乐 (BGM)</h4>
+                <div>
+                    <select
+                        value={bgm}
+                        onChange={(e) => setBgm(e.target.value)}
+                        disabled={disabled}
+                        style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'rgba(0,0,0,0.3)', color: 'var(--text-primary)', outline: 'none' }}
+                    >
+                        <option value="">无背景音乐 (None)</option>
+                        {bgmList.map(b => (
+                            <option key={b} value={b}>{b}</option>
+                        ))}
+                    </select>
+                </div>
             </div>
 
             <div className="form-group grid">

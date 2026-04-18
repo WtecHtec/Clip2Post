@@ -151,7 +151,8 @@ def process_tts_render_pipeline(
     speed: float = 5,
     refine_text: bool = True,
     cover_title: str = "",
-    cover_image_name: str = ""
+    cover_image_name: str = "",
+    bgm: str = ""
 ):
     """Background task to generate TTS audio and render video directly."""
     task_manager = TaskManager(task_id=task_id)
@@ -224,6 +225,8 @@ def process_tts_render_pipeline(
             props["coverTitle"] = cover_title
         if cover_image_name:
             props["coverImageUrl"] = f"tasks/{task_id}/images/{cover_image_name}"
+        if bgm:
+            props["bgm"] = bgm
         
         shuo_json_path = audio_dir / "shuo.json"
         with open(shuo_json_path, 'w', encoding='utf-8') as f:
@@ -311,7 +314,8 @@ async def tts_render(
     speed: float = Form(5),
     refine_text: bool = Form(True),
     cover_title: str = Form(""),
-    cover_image: UploadFile = File(None)
+    cover_image: UploadFile = File(None),
+    bgm: str = Form("")
 ):
     """Generate TTS audio and render video from text."""
     task_manager = TaskManager()
@@ -340,7 +344,8 @@ async def tts_render(
         speed,
         refine_text,
         cover_title,
-        cover_image_name
+        cover_image_name,
+        bgm
     )
     
     return {"task_id": task_id, "message": "TTS Render Task started."}
@@ -397,6 +402,18 @@ async def get_tasks():
                 except Exception:
                     pass
     return {"tasks": tasks_list}
+
+@app.get("/api/bgms")
+async def get_bgms():
+    """List available background music files."""
+    bgm_dir = Path("bgm")
+    if not bgm_dir.exists():
+        bgm_dir.mkdir(exist_ok=True)
+    
+    bgms = []
+    for ext in ("*.mp3", "*.wav", "*.m4a"):
+        bgms.extend([f.name for f in bgm_dir.glob(ext)])
+    return {"bgms": sorted(bgms)}
 
 @app.get("/api/status/{task_id}")
 async def get_status(task_id: str):
@@ -508,6 +525,7 @@ def process_agent_video_pipeline(
     top_k: int = 20,
     speed: float = 5,
     refine_text: bool = True,
+    bgm: str = "",
     llm_settings: dict = None
 ):
     """Background task for Agent Mode video generation."""
@@ -581,6 +599,8 @@ def process_agent_video_pipeline(
             "randomOrientation": True,
             "verticalFirstWord": True
         }
+        if bgm:
+            props["bgm"] = bgm
         
         shuo_json_path = audio_dir / "shuo.json"
         with open(shuo_json_path, 'w', encoding='utf-8') as f:
@@ -615,6 +635,7 @@ async def generate_agent_video(
     top_k: int = Form(20),
     speed: float = Form(1.0),
     refine_text: bool = Form(True),
+    bgm: str = Form(""),
     llm_api_key: str = Form(""),
     llm_base_url: str = Form(""),
     llm_model: str = Form("")
@@ -668,6 +689,7 @@ async def generate_agent_video(
         top_k=top_k,
         speed=speed,
         refine_text=refine_text,
+        bgm=bgm,
         llm_settings=llm_settings
     )
     
@@ -683,7 +705,8 @@ def process_image_video_pipeline(
     top_k: int = 20,
     speed: float = 5,
     refine_text: bool = True,
-    cover_title: str = ""
+    cover_title: str = "",
+    bgm: str = ""
 ):
     """Background task for Image-to-Video generation using ImageScene Remotion layout."""
     task_manager = TaskManager(task_id=task_id)
@@ -749,6 +772,8 @@ def process_image_video_pipeline(
         }
         if cover_title:
             props["coverTitle"] = cover_title
+        if bgm:
+            props["bgm"] = bgm
         
         shuo_json_path = audio_dir / "shuo.json"
         with open(shuo_json_path, 'w', encoding='utf-8') as f:
@@ -784,7 +809,8 @@ async def generate_image_video(
     top_k: int = Form(20),
     speed: float = Form(1.0),
     refine_text: bool = Form(True),
-    cover_title: str = Form("")
+    cover_title: str = Form(""),
+    bgm: str = Form("")
 ):
     """Endpoint for Image-to-Video mode generation."""
     task_manager = TaskManager()
@@ -809,7 +835,8 @@ async def generate_image_video(
         top_k=top_k,
         speed=speed,
         refine_text=refine_text,
-        cover_title=cover_title
+        cover_title=cover_title,
+        bgm=bgm
     )
     
     return {"task_id": task_id, "message": "Image Video Task started."}

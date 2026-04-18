@@ -24,6 +24,16 @@ class RemotionRenderer:
             except Exception as e:
                 print(f"      Warning: Failed to create symlink: {e}")
 
+        bgm_dir = Path("bgm").absolute()
+        if bgm_dir.exists():
+            bgm_symlink = public_dir / "bgm"
+            if not bgm_symlink.exists() and not bgm_symlink.is_symlink():
+                try:
+                    os.symlink(bgm_dir, bgm_symlink)
+                    print(f"      Created BGM symlink: {bgm_symlink} -> {bgm_dir}")
+                except Exception as e:
+                    print(f"      Warning: Failed to create BGM symlink: {e}")
+
     def render(self, props_path, output_path, duration_frames=300, composition_id="MyScene"):
         """
         Render video using Remotion CLI.
