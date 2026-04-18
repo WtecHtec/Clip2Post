@@ -97,10 +97,12 @@ Made with ❤️ by WtecHtec.
 支持关键词：
 
  [laughter]、
- [sigh]、
  [sniff]、
  [confirmation-en]、
  [question-en]、
  [question-ah/oh/ei/yi]、
  [surprise-ah/oh/wa/yo]、
  [dissatisfaction-hnn]
+
+支持方言：
+ 东北话，中年，中音调，云南话，低音调，儿童，四川话，女，宁夏话，少年，极低音调，极高音调，桂林话，河南话，济南话，甘肃话，男，石家庄话，老年，耳语，贵州话，陕西话，青岛话，青年，高音调
