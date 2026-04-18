@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Type, Play } from 'lucide-react';
+import { Type, Play, X, Image as ImageIcon } from 'lucide-react';
 import type { TTSOptions } from '../api';
 
 interface TTSVideoFormProps {
@@ -17,11 +17,56 @@ export const TTSVideoForm: React.FC<TTSVideoFormProps> = ({
     initialOptions,
     submitLabel = 'Generate Video'
 }) => {
-    const [text, setText] = useState(initialText);
+    const [text, setText] = useState(() => {
+        if (initialText) return initialText;
+        return localStorage.getItem('tts-video-text-raw') || '';
+    });
+
+    useEffect(() => {
+        localStorage.setItem('tts-video-text-raw', text);
+    }, [text]);
+
     const [ttsEngine, setTtsEngine] = useState('edge');
     const [voice, setVoice] = useState('');
     const [preset, setPreset] = useState('default');
     const [refineText, setRefineText] = useState(true);
+    const [coverTitle, setCoverTitle] = useState('');
+    const [coverImage, setCoverImage] = useState<File | null>(null);
+    const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+    const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            const file = e.target.files[0]
+            setCoverImage(file);
+            const url = URL.createObjectURL(file);
+            setPreviewUrl(url);
+        }
+    };
+
+    const preventDefaults = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+    };
+
+    const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+        preventDefaults(e);
+        if (disabled) return;
+        const files = Array.from(e.dataTransfer.files);
+        if (files.length > 0 && files[0].type.startsWith("image/")) {
+            setCoverImage(files[0]);
+            setPreviewUrl(URL.createObjectURL(files[0]));
+        }
+    };
+
+    const removeImage = (e?: React.MouseEvent) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        setCoverImage(null);
+        if (previewUrl) URL.revokeObjectURL(previewUrl);
+        setPreviewUrl(null);
+    };
 
     // Advanced parameters
     const [temperature, setTemperature] = useState(0.3);
@@ -79,12 +124,60 @@ export const TTSVideoForm: React.FC<TTSVideoFormProps> = ({
             top_p: topP,
             top_k: topK,
             speed,
-            refine_text: refineText
+            refine_text: refineText,
+            coverTitle,
+            coverImage: coverImage || undefined
         });
     };
 
     return (
         <div className="tts-video-form">
+            <div style={{ marginBottom: '1.5rem', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                <h4 className="section-title" style={{ marginBottom: '1rem', fontSize: '1rem' }}>🖼️ 视频封面设置 (选填)</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1rem' }}>
+                    <div>
+                        <label style={{ display: 'block', fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>大字标题</label>
+                        <input type="text" value={coverTitle} onChange={(e) => setCoverTitle(e.target.value)} placeholder="如填入标题，将在开头呈现专场封面帧..." style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'rgba(0,0,0,0.3)', color: 'var(--text-primary)', outline: 'none' }} />
+                    </div>
+                    <div>
+                        <label style={{ display: 'block', fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>封面底图</label>
+                        {!previewUrl ? (
+                            <div
+                                style={{ position: 'relative', marginTop: 0, padding: '1rem', minHeight: '80px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}
+                                className={`upload-zone ${disabled ? 'opacity-50 pointer-events-none' : ''}`}
+                                onDragOver={(e) => { e.preventDefault(); }}
+                                onDrop={handleDrop}
+                                onClick={() => { document.getElementById('cover-image-upload')?.click(); }}
+                            >
+                                <ImageIcon className="upload-icon mx-auto" style={{ width: 24, height: 24, marginBottom: 8 }} />
+                                <div className="upload-text" style={{ fontSize: '0.8rem' }}>点击或拖拽上传封面</div>
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={handleImageChange}
+                                    disabled={disabled}
+                                    className="hidden"
+                                    style={{ display: 'none' }}
+                                    id="cover-image-upload"
+                                />
+                            </div>
+                        ) : (
+                            <div style={{ position: 'relative', display: 'inline-block', borderRadius: '8px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)', maxWidth: '200px' }}>
+                                <img src={previewUrl} alt="Preview" style={{ width: '100%', display: 'block' }} />
+                                <div
+                                    className="icon-btn-secondary"
+                                    title="移除图片"
+                                    style={{ position: 'absolute', top: '4px', right: '4px', background: 'rgba(0,0,0,0.6)', padding: '4px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                    onClick={removeImage}
+                                >
+                                    <X size={14} color="white" />
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+
             <div style={{ marginBottom: '1.5rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                     <h3 style={{ margin: 0, fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -296,7 +389,8 @@ export const TTSVideoForm: React.FC<TTSVideoFormProps> = ({
                                         <option value="女，耳语">女声 - 耳语 (女，耳语)</option>
                                         <option value="男，耳语">男声 - 耳语 (男，耳语)</option>
                                         <option value="儿童">儿童声 (儿童)</option>
-                                        <option value="老年">老年声 (老年)</option>
+                                        <option value="女，老年">女声 - 老年 (女，老年)</option>
+                                        <option value="男，老年">男声 - 老年 (男，老年)</option>
                                     </select>
                                 </div>
                             </div>

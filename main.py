@@ -149,12 +149,19 @@ def process_tts_render_pipeline(
     top_p: float = 0.7,
     top_k: int = 20,
     speed: float = 5,
-    refine_text: bool = True
+    refine_text: bool = True,
+    cover_title: str = "",
+    cover_image_name: str = ""
 ):
     """Background task to generate TTS audio and render video directly."""
     task_manager = TaskManager(task_id=task_id)
     try:
         task_manager.update_status(0.1, f"正在生成语音 ({tts_engine})...", "processing", task_type="standard")
+        
+        # Save raw text as subtitle for UI display
+        subtitle_dir = task_manager.get_dir("subtitle")
+        with open(subtitle_dir / "subtitle.txt", 'w', encoding='utf-8') as f:
+            f.write(text)
         
         # Save task configuration for future re-generation
         import json
@@ -205,9 +212,6 @@ def process_tts_render_pipeline(
                 c["text"] = re.sub(r'\[.*?\]\s*', '', c["text"]).strip()
             
         # Use symlink to root tasks directory to avoid copying
-        # (handeled automatically by RemotionRenderer)
-        audio_rel_path = f"tasks/{task_id}/audio/{Path(audio_path).name}"
-        
         props = {
             "captions": captions,
             "audioUrl": audio_rel_path,
@@ -216,6 +220,10 @@ def process_tts_render_pipeline(
             "randomOrientation": True,
             "verticalFirstWord": True
         }
+        if cover_title:
+            props["coverTitle"] = cover_title
+        if cover_image_name:
+            props["coverImageUrl"] = f"tasks/{task_id}/images/{cover_image_name}"
         
         shuo_json_path = audio_dir / "shuo.json"
         with open(shuo_json_path, 'w', encoding='utf-8') as f:
@@ -224,6 +232,8 @@ def process_tts_render_pipeline(
         video_output = task_manager.get_dir("videos") / "remotion_video.mp4"
         total_duration_ms = captions[-1]["endMs"] if captions else 3000
         duration_frames = int((total_duration_ms / 1000) * 30) + 30
+        if cover_title:
+            duration_frames += 60
         
         run_remotion_render(shuo_json_path, video_output, duration_frames=duration_frames)
         
@@ -299,7 +309,9 @@ async def tts_render(
     top_p: float = Form(0.7),
     top_k: int = Form(20),
     speed: float = Form(5),
-    refine_text: bool = Form(True)
+    refine_text: bool = Form(True),
+    cover_title: str = Form(""),
+    cover_image: UploadFile = File(None)
 ):
     """Generate TTS audio and render video from text."""
     task_manager = TaskManager()
@@ -307,6 +319,15 @@ async def tts_render(
     
     task_manager.update_status(0.05, "任务已启动...", "processing", task_type="standard")
     
+    cover_image_name = ""
+    # Save cover image if uploaded
+    if cover_image and cover_image.filename:
+        images_dir = task_manager.get_dir("images")
+        file_path = images_dir / cover_image.filename
+        with open(file_path, "wb") as f:
+            shutil.copyfileobj(cover_image.file, f)
+        cover_image_name = cover_image.filename
+
     background_tasks.add_task(
         process_tts_render_pipeline,
         task_id,
@@ -317,7 +338,9 @@ async def tts_render(
         top_p,
         top_k,
         speed,
-        refine_text
+        refine_text,
+        cover_title,
+        cover_image_name
     )
     
     return {"task_id": task_id, "message": "TTS Render Task started."}
@@ -659,12 +682,18 @@ def process_image_video_pipeline(
     top_p: float = 0.7,
     top_k: int = 20,
     speed: float = 5,
-    refine_text: bool = True
+    refine_text: bool = True,
+    cover_title: str = ""
 ):
     """Background task for Image-to-Video generation using ImageScene Remotion layout."""
     task_manager = TaskManager(task_id=task_id)
     try:
         task_manager.update_status(0.1, f"正在生成语音 ({tts_engine})...", "processing", task_type="image_video")
+        
+        # Save raw text as subtitle for UI display
+        subtitle_dir = task_manager.get_dir("subtitle")
+        with open(subtitle_dir / "subtitle.txt", 'w', encoding='utf-8') as f:
+            f.write(text)
         
         audio_dir = task_manager.get_dir("audio")
         output_base = audio_dir / "tts_output"
@@ -698,6 +727,7 @@ def process_image_video_pipeline(
         for c in captions:
             if "text" in c:
                 c["text"] = re.sub(r'\[.*?\]\s*', '', c["text"]).strip()
+                c["text"] = re.sub(r'[，。！？、；：“”‘’（）《》【】.,!?;:\'\"()\[\]<>\-~]', '', c["text"]).strip()
         
         # Determine image
         images_dir = task_manager.get_dir("images")
@@ -717,6 +747,8 @@ def process_image_video_pipeline(
             "audioUrl": audio_rel_path,
             "fontSize": 90
         }
+        if cover_title:
+            props["coverTitle"] = cover_title
         
         shuo_json_path = audio_dir / "shuo.json"
         with open(shuo_json_path, 'w', encoding='utf-8') as f:
@@ -727,6 +759,8 @@ def process_image_video_pipeline(
         video_output = task_manager.get_dir("videos") / "remotion_video.mp4"
         total_duration_ms = captions[-1]["endMs"] if captions else 3000
         duration_frames = int((total_duration_ms / 1000) * 30) + 30
+        if cover_title:
+            duration_frames += 60
         
         from video.remotion_renderer import run_remotion_render
         run_remotion_render(shuo_json_path, video_output, duration_frames=duration_frames, composition_id="ImageScene")
@@ -749,7 +783,8 @@ async def generate_image_video(
     top_p: float = Form(0.7),
     top_k: int = Form(20),
     speed: float = Form(1.0),
-    refine_text: bool = Form(True)
+    refine_text: bool = Form(True),
+    cover_title: str = Form("")
 ):
     """Endpoint for Image-to-Video mode generation."""
     task_manager = TaskManager()
@@ -773,7 +808,8 @@ async def generate_image_video(
         top_p=top_p,
         top_k=top_k,
         speed=speed,
-        refine_text=refine_text
+        refine_text=refine_text,
+        cover_title=cover_title
     )
     
     return {"task_id": task_id, "message": "Image Video Task started."}

@@ -9,6 +9,7 @@ import {
     staticFile,
     random,
     Audio,
+    Sequence,
 } from 'remotion';
 import { z } from 'zod';
 import { measureText } from '@remotion/layout-utils';
@@ -41,6 +42,8 @@ export const MySceneSchema = z.object({
     verticalFirstWord: z.boolean().optional().default(true),
     randomOrientation: z.boolean().optional().default(false),
     audioUrl: z.string().optional(),
+    coverTitle: z.string().optional(),
+    coverImageUrl: z.string().optional(),
 });
 
 const VIBRANT_COLORS = [
@@ -76,9 +79,15 @@ export const MyScene: React.FC<z.infer<typeof MySceneSchema>> = ({
     verticalFirstWord = true,
     randomOrientation = false,
     audioUrl,
+    coverTitle,
+    coverImageUrl,
 }) => {
-    const frame = useCurrentFrame();
+    const rawFrame = useCurrentFrame();
     const { fps, width: videoWidth, height: videoHeight } = useVideoConfig();
+
+    // Offset for cover 
+    const coverFrames = coverTitle ? fps * 2 : 0;
+    const frame = Math.max(0, rawFrame - coverFrames);
     const currentMs = (frame / fps) * 1000;
 
     // 1. Grid Occupancy Layout Engine (Tetris Style)
@@ -308,7 +317,11 @@ export const MyScene: React.FC<z.infer<typeof MySceneSchema>> = ({
 
     return (
         <AbsoluteFill style={{ backgroundColor: '#050505' }}>
-            {audioUrl && <Audio src={staticFile(audioUrl)} />}
+            {audioUrl && (
+                <Sequence from={coverFrames}>
+                    <Audio src={staticFile(audioUrl)} />
+                </Sequence>
+            )}
             <svg style={{ position: 'absolute', width: 0, height: 0 }}>
                 <filter id="scrollBlur">
                     <feGaussianBlur in="SourceGraphic" stdDeviation={`0 ${blurAmount}`} />
@@ -435,6 +448,25 @@ export const MyScene: React.FC<z.infer<typeof MySceneSchema>> = ({
 
             <AbsoluteFill style={{ background: 'linear-gradient(to bottom, #050505 0%, transparent 15%, transparent 85%, #050505 100%)', pointerEvents: 'none' }} />
             <AbsoluteFill style={{ border: '24px solid rgba(255,255,255,0.03)', pointerEvents: 'none' }} />
+
+            {/* Cover Sequence render */}
+            {coverFrames > 0 && rawFrame < coverFrames && (
+                <AbsoluteFill style={{ backgroundColor: '#111', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {coverImageUrl && (
+                        <AbsoluteFill>
+                            {/* Blurred background */}
+                            <Img src={coverImageUrl.startsWith('http') ? coverImageUrl : staticFile(coverImageUrl)} style={{ width: '110%', height: '110%', objectFit: 'cover', filter: 'brightness(0.2) blur(20px)', position: 'absolute', top: '-5%', left: '-5%' }} />
+                            {/* Clear image */}
+                            <Img src={coverImageUrl.startsWith('http') ? coverImageUrl : staticFile(coverImageUrl)} style={{ width: '100%', height: '100%', objectFit: 'contain', zIndex: 2 }} />
+                        </AbsoluteFill>
+                    )}
+                    <div style={{ padding: '0 80px', zIndex: 201 }}>
+                        <h1 style={{ fontSize: 90, color: 'white', fontWeight: '900', textAlign: 'center', fontFamily: 'Inter', textShadow: '0 10px 40px rgba(0,0,0,0.8)', lineHeight: 1.3 }}>
+                            {coverTitle}
+                        </h1>
+                    </div>
+                </AbsoluteFill>
+            )}
         </AbsoluteFill>
     );
 };

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Play, Image as ImageIcon } from 'lucide-react';
 import type { TTSOptions } from '../api';
 
@@ -14,9 +14,17 @@ export const ImageVideoForm: React.FC<ImageVideoFormProps> = ({
     const [image, setImage] = useState<File | null>(null);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
-    const [text, setText] = useState("");
+    const [text, setText] = useState(() => {
+        return localStorage.getItem('image-video-text-raw') || "";
+    });
+
+    useEffect(() => {
+        localStorage.setItem('image-video-text-raw', text);
+    }, [text]);
+
     const [ttsEngine, setTtsEngine] = useState("edge");
     const [voice, setVoice] = useState("zh-CN-XiaoxiaoNeural");
+    const [coverTitle, setCoverTitle] = useState("");
 
     // Advanced TTS settings
     const [temperature, setTemperature] = useState(0.3);
@@ -67,7 +75,8 @@ export const ImageVideoForm: React.FC<ImageVideoFormProps> = ({
             top_p: topP,
             top_k: topK,
             speed,
-            refine_text: refineText
+            refine_text: refineText,
+            coverTitle
         }, image);
     };
 
@@ -76,7 +85,7 @@ export const ImageVideoForm: React.FC<ImageVideoFormProps> = ({
             <h2 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '1rem' }}>图文转视频 (Image to Video)</h2>
 
             <div className="form-group grid" style={{ gridTemplateColumns: '1fr' }}>
-                <label>选择一张图片</label>
+                {/* <label>选择一张图片</label> */}
                 {!previewUrl ? (
                     <div
                         style={{ position: 'relative' }}
@@ -101,8 +110,8 @@ export const ImageVideoForm: React.FC<ImageVideoFormProps> = ({
                 ) : (
                     <div style={{ position: 'relative', display: 'inline-block', borderRadius: '12px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)', maxWidth: '300px' }}>
                         <img src={previewUrl} alt="Preview" style={{ width: '100%', display: 'block' }} />
-                        <button
-                            type="button"
+                        <div
+
                             className="icon-btn-secondary"
                             title="移除图片"
                             style={{ position: 'absolute', top: '8px', right: '8px', background: 'rgba(0,0,0,0.6)' }}
@@ -110,7 +119,7 @@ export const ImageVideoForm: React.FC<ImageVideoFormProps> = ({
                             disabled={disabled}
                         >
                             <X size={16} />
-                        </button>
+                        </div>
                     </div>
                 )}
             </div>
@@ -135,6 +144,27 @@ export const ImageVideoForm: React.FC<ImageVideoFormProps> = ({
                         lineHeight: '1.6',
                         outline: 'none',
                         resize: 'vertical'
+                    }}
+                />
+            </div>
+
+            <div className="form-group">
+                <label>封面标题 (选填)</label>
+                <input
+                    type="text"
+                    placeholder="选填：如填入标题，将在开头呈现基于底图的专场封面帧..."
+                    value={coverTitle}
+                    onChange={(e) => setCoverTitle(e.target.value)}
+                    disabled={disabled}
+                    style={{
+                        width: '100%',
+                        padding: '0.8rem',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border-color)',
+                        background: 'rgba(0,0,0,0.3)',
+                        color: 'var(--text-primary)',
+                        outline: 'none',
+                        fontSize: '1rem',
                     }}
                 />
             </div>
@@ -231,7 +261,8 @@ export const ImageVideoForm: React.FC<ImageVideoFormProps> = ({
                             <option value="女，耳语">女声 - 耳语 (女，耳语)</option>
                             <option value="男，耳语">男声 - 耳语 (男，耳语)</option>
                             <option value="儿童">儿童声 (儿童)</option>
-                            <option value="老年">老年声 (老年)</option>
+                            <option value="女，老年">女声 - 老年 (女，老年)</option>
+                            <option value="男，老年">男声 - 老年 (男，老年)</option>
                         </select>
                     ) : (
                         <input

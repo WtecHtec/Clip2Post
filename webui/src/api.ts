@@ -57,6 +57,8 @@ export interface TTSOptions {
   top_k?: number;
   speed?: number;
   refine_text?: boolean;
+  coverTitle?: string;
+  coverImage?: File;
 }
 
 export const uploadVideo = async (options: UploadOptions, file?: File | null): Promise<string> => {
@@ -104,6 +106,8 @@ export const generateTTSVideo = async (options: TTSOptions): Promise<string> => 
   if (options.top_k !== undefined) formData.append('top_k', String(options.top_k));
   if (options.speed !== undefined) formData.append('speed', String(options.speed));
   if (options.refine_text !== undefined) formData.append('refine_text', String(options.refine_text));
+  if (options.coverTitle) formData.append('cover_title', options.coverTitle);
+  if (options.coverImage) formData.append('cover_image', options.coverImage);
 
   const response = await fetch(`${API_BASE_URL}/tts_render`, {
     method: 'POST',
@@ -262,6 +266,7 @@ export const generateImageVideo = async (options: TTSOptions, image: File): Prom
   if (options.top_k !== undefined) formData.append('top_k', String(options.top_k));
   if (options.speed !== undefined) formData.append('speed', String(options.speed));
   if (options.refine_text !== undefined) formData.append('refine_text', String(options.refine_text));
+  if (options.coverTitle) formData.append('cover_title', options.coverTitle);
 
   formData.append('image', image);
 
