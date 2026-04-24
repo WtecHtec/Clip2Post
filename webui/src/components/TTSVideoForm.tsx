@@ -399,8 +399,8 @@ export const TTSVideoForm: React.FC<TTSVideoFormProps> = ({
                                         }}
                                     >
                                         <option value="" disabled>请选择或在上方自定义输入</option>
-                                        <option value="女">女声默认 (女)</option>
-                                        <option value="男">男声默认 (男)</option>
+                                        <option value="女, 青年">女声默认 (女)</option>
+                                        <option value="男, 青年">男声默认 (男)</option>
                                         <option value="女，低音调">女声 - 低音 (女，低音调)</option>
                                         <option value="男，低音调">男声 - 低音 (男，低音调)</option>
                                         <option value="女，高音调">女声 - 高音 (女，高音调)</option>

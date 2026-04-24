@@ -213,6 +213,7 @@ def process_tts_render_pipeline(
                 c["text"] = re.sub(r'\[.*?\]\s*', '', c["text"]).strip()
             
         # Use symlink to root tasks directory to avoid copying
+        audio_rel_path = f"tasks/{task_id}/audio/{Path(audio_path).name}"
         props = {
             "captions": captions,
             "audioUrl": audio_rel_path,
