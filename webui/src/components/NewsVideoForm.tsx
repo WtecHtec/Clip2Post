@@ -1,30 +1,33 @@
 import React, { useState, useEffect } from 'react';
-import { X, Play, Image as ImageIcon } from 'lucide-react';
-import type { TTSOptions } from '../api';
+import { X, Play, Image as ImageIcon, MessageSquare } from 'lucide-react';
+import type { NewsVideoOptions } from '../api';
 
-interface ImageVideoFormProps {
-    onGenerate: (options: TTSOptions, image: File) => void;
+interface NewsVideoFormProps {
+    onGenerate: (options: NewsVideoOptions, image: File) => void;
     disabled?: boolean;
 }
 
-export const ImageVideoForm: React.FC<ImageVideoFormProps> = ({
+export const NewsVideoForm: React.FC<NewsVideoFormProps> = ({
     onGenerate,
     disabled
 }) => {
     const [image, setImage] = useState<File | null>(null);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
-    const [text, setText] = useState(() => {
-        return localStorage.getItem('image-video-text-raw') || "";
-    });
-
+    const [openingHook, setOpeningHook] = useState(() => localStorage.getItem('news-video-opening') || "");
+    const [mainText, setMainText] = useState(() => localStorage.getItem('news-video-main') || "");
+    const [endingHook, setEndingHook] = useState(() => localStorage.getItem('news-video-ending') || "");
+    
     useEffect(() => {
-        localStorage.setItem('image-video-text-raw', text);
-    }, [text]);
+        localStorage.setItem('news-video-opening', openingHook);
+        localStorage.setItem('news-video-main', mainText);
+        localStorage.setItem('news-video-ending', endingHook);
+    }, [openingHook, mainText, endingHook]);
 
     const [ttsEngine, setTtsEngine] = useState("edge");
     const [voice, setVoice] = useState("zh-CN-XiaoxiaoNeural");
     const [coverTitle, setCoverTitle] = useState("");
+    const [endingTitle, setEndingTitle] = useState("");
     const [bgm, setBgm] = useState<string>('');
     const [bgmList, setBgmList] = useState<string[]>([]);
 
@@ -41,20 +44,15 @@ export const ImageVideoForm: React.FC<ImageVideoFormProps> = ({
 
     const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
-            const file = e.target.files[0]
+            const file = e.target.files[0];
             setImage(file);
-            const url = URL.createObjectURL(file);
-            setPreviewUrl(url);
+            setPreviewUrl(URL.createObjectURL(file));
         }
     };
 
-    const preventDefaults = (e: React.DragEvent) => {
+    const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
         e.preventDefault();
         e.stopPropagation();
-    };
-
-    const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-        preventDefaults(e);
         if (disabled) return;
         const files = Array.from(e.dataTransfer.files);
         if (files.length > 0 && files[0].type.startsWith("image/")) {
@@ -71,10 +69,12 @@ export const ImageVideoForm: React.FC<ImageVideoFormProps> = ({
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!image || !text.trim()) return;
+        if (!image || !mainText.trim()) return;
 
         onGenerate({
-            text,
+            openingHook,
+            mainText,
+            endingHook,
             ttsEngine,
             voice,
             temperature,
@@ -83,45 +83,43 @@ export const ImageVideoForm: React.FC<ImageVideoFormProps> = ({
             speed,
             refine_text: refineText,
             coverTitle,
+            endingTitle,
             bgm: bgm || undefined
         }, image);
     };
 
     return (
         <form className="config-form" onSubmit={handleSubmit}>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '1rem' }}>图文转视频 (Image to Video)</h2>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '1rem' }}>资讯播报 (News Broadcast Video)</h2>
 
             <div className="form-group grid" style={{ gridTemplateColumns: '1fr' }}>
-                {/* <label>选择一张图片</label> */}
                 {!previewUrl ? (
                     <div
                         style={{ position: 'relative' }}
                         className={`upload-zone ${disabled ? 'opacity-50 pointer-events-none' : ''}`}
                         onDragOver={(e) => { e.preventDefault(); }}
                         onDrop={handleDrop}
-                        onClick={() => { document.getElementById('image-upload')?.click(); }}
+                        onClick={() => { document.getElementById('news-image-upload')?.click(); }}
                     >
                         <ImageIcon className="upload-icon mx-auto" />
-                        <div className="upload-text">点击或拖拽图片到此处</div>
-                        <div className="upload-hint">支持 JPG, PNG</div>
+                        <div className="upload-text">点击或拖拽背景图片到此处</div>
+                        <div className="upload-hint">支持 JPG, PNG (必填)</div>
                         <input
                             type="file"
                             accept="image/*"
                             onChange={handleImageChange}
                             disabled={disabled}
-                            className="hidden"
                             style={{ display: 'none' }}
-                            id="image-upload"
+                            id="news-image-upload"
                         />
                     </div>
                 ) : (
                     <div style={{ position: 'relative', display: 'inline-block', borderRadius: '12px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)', maxWidth: '300px' }}>
                         <img src={previewUrl} alt="Preview" style={{ width: '100%', display: 'block' }} />
                         <div
-
                             className="icon-btn-secondary"
                             title="移除图片"
-                            style={{ position: 'absolute', top: '8px', right: '8px', background: 'rgba(0,0,0,0.6)' }}
+                            style={{ position: 'absolute', top: '8px', right: '8px', background: 'rgba(0,0,0,0.6)', cursor: 'pointer' }}
                             onClick={removeImage}
                         >
                             <X size={16} />
@@ -130,66 +128,82 @@ export const ImageVideoForm: React.FC<ImageVideoFormProps> = ({
                 )}
             </div>
 
+            <div className="form-group grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div>
+                    <label>封面标题 (选填)</label>
+                    <input
+                        type="text"
+                        placeholder="如填入，将在视频开头展示2秒"
+                        value={coverTitle}
+                        onChange={(e) => setCoverTitle(e.target.value)}
+                        disabled={disabled}
+                        style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'rgba(0,0,0,0.3)', color: 'var(--text-primary)', outline: 'none' }}
+                    />
+                </div>
+                <div>
+                    <label>结尾标题 (选填)</label>
+                    <input
+                        type="text"
+                        placeholder="如填入，将在视频结尾展示2秒"
+                        value={endingTitle}
+                        onChange={(e) => setEndingTitle(e.target.value)}
+                        disabled={disabled}
+                        style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'rgba(0,0,0,0.3)', color: 'var(--text-primary)', outline: 'none' }}
+                    />
+                </div>
+            </div>
+
             <div className="form-group">
-                <label>文案内容 (将生成为配音和字幕)</label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <MessageSquare size={16} /> 开头钩子文案 (选填，仅播放声音)
+                </label>
                 <textarea
-                    placeholder="请输入视频配音文案..."
-                    value={text}
-                    onChange={(e) => setText(e.target.value)}
-                    required
+                    placeholder="吸引注意力的开头语音..."
+                    value={openingHook}
+                    onChange={(e) => setOpeningHook(e.target.value)}
                     disabled={disabled}
-                    style={{
-                        width: '100%',
-                        minHeight: '150px',
-                        padding: '1rem',
-                        borderRadius: '12px',
-                        border: '1px solid var(--border-color)',
-                        backgroundColor: 'rgba(0,0,0,0.3)',
-                        color: 'var(--text-primary)',
-                        fontSize: '1rem',
-                        lineHeight: '1.6',
-                        outline: 'none',
-                        resize: 'vertical'
-                    }}
+                    style={{ width: '100%', minHeight: '60px', padding: '1rem', borderRadius: '12px', border: '1px solid var(--border-color)', backgroundColor: 'rgba(0,0,0,0.3)', color: 'var(--text-primary)', outline: 'none', resize: 'vertical' }}
                 />
             </div>
 
             <div className="form-group">
-                <label>封面标题 (选填)</label>
-                <input
-                    type="text"
-                    placeholder="选填：如填入标题，将在开头呈现基于底图的专场封面帧..."
-                    value={coverTitle}
-                    onChange={(e) => setCoverTitle(e.target.value)}
+                <label style={{ color: 'var(--accent-primary)', fontWeight: 600 }}>正文文案 (必填，将在视频中滚动显示)</label>
+                <textarea
+                    placeholder="请输入资讯的主体内容..."
+                    value={mainText}
+                    onChange={(e) => setMainText(e.target.value)}
+                    required
                     disabled={disabled}
-                    style={{
-                        width: '100%',
-                        padding: '0.8rem',
-                        borderRadius: '8px',
-                        border: '1px solid var(--border-color)',
-                        background: 'rgba(0,0,0,0.3)',
-                        color: 'var(--text-primary)',
-                        outline: 'none',
-                        fontSize: '1rem',
-                    }}
+                    style={{ width: '100%', minHeight: '150px', padding: '1rem', borderRadius: '12px', border: '1px solid var(--accent-primary)', backgroundColor: 'rgba(59, 130, 246, 0.05)', color: 'var(--text-primary)', outline: 'none', resize: 'vertical', fontSize: '1rem', lineHeight: '1.6' }}
+                />
+            </div>
+
+            <div className="form-group">
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <MessageSquare size={16} /> 结尾钩子文案 (选填，仅播放声音)
+                </label>
+                <textarea
+                    placeholder="引导点赞关注的结尾语音..."
+                    value={endingHook}
+                    onChange={(e) => setEndingHook(e.target.value)}
+                    disabled={disabled}
+                    style={{ width: '100%', minHeight: '60px', padding: '1rem', borderRadius: '12px', border: '1px solid var(--border-color)', backgroundColor: 'rgba(0,0,0,0.3)', color: 'var(--text-primary)', outline: 'none', resize: 'vertical' }}
                 />
             </div>
 
             <div className="form-group" style={{ marginBottom: '1.5rem', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
                 <h4 style={{ marginBottom: '1rem', fontSize: '1rem' }}>🎵 视频背景音乐 (BGM)</h4>
-                <div>
-                    <select
-                        value={bgm}
-                        onChange={(e) => setBgm(e.target.value)}
-                        disabled={disabled}
-                        style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'rgba(0,0,0,0.3)', color: 'var(--text-primary)', outline: 'none' }}
-                    >
-                        <option value="">无背景音乐 (None)</option>
-                        {bgmList.map(b => (
-                            <option key={b} value={b}>{b}</option>
-                        ))}
-                    </select>
-                </div>
+                <select
+                    value={bgm}
+                    onChange={(e) => setBgm(e.target.value)}
+                    disabled={disabled}
+                    style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'rgba(0,0,0,0.3)', color: 'var(--text-primary)', outline: 'none' }}
+                >
+                    <option value="">无背景音乐 (None)</option>
+                    {bgmList.map(b => (
+                        <option key={b} value={b}>{b}</option>
+                    ))}
+                </select>
             </div>
 
             <div className="form-group grid">
@@ -206,15 +220,7 @@ export const ImageVideoForm: React.FC<ImageVideoFormProps> = ({
                             else setVoice('');
                         }}
                         disabled={disabled}
-                        style={{
-                            width: '100%',
-                            padding: '0.8rem',
-                            borderRadius: '8px',
-                            border: '1px solid var(--border-color)',
-                            background: 'rgba(255, 255, 255, 0.05)',
-                            color: 'var(--text-primary)',
-                            outline: 'none'
-                        }}
+                        style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'rgba(255, 255, 255, 0.05)', color: 'var(--text-primary)', outline: 'none' }}
                     >
                         <option value="edge">Edge TTS</option>
                         <option value="omnivoice">OmniVoice (小米星辰)</option>
@@ -225,59 +231,20 @@ export const ImageVideoForm: React.FC<ImageVideoFormProps> = ({
                 <div>
                     <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>配音角色</label>
                     {ttsEngine === "edge" ? (
-                        <select
-                            value={voice}
-                            onChange={(e) => setVoice(e.target.value)}
-                            disabled={disabled}
-                            style={{
-                                width: '100%',
-                                padding: '0.8rem',
-                                borderRadius: '8px',
-                                border: '1px solid var(--border-color)',
-                                background: 'rgba(255, 255, 255, 0.05)',
-                                color: 'var(--text-primary)',
-                                outline: 'none'
-                            }}
-                        >
+                        <select value={voice} onChange={(e) => setVoice(e.target.value)} disabled={disabled} style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'rgba(255, 255, 255, 0.05)', color: 'var(--text-primary)', outline: 'none' }}>
                             <option value="zh-CN-XiaoxiaoNeural">晓晓 (女)</option>
                             <option value="zh-CN-YunxiNeural">云希 (男)</option>
                             <option value="zh-CN-YunjianNeural">云健 (男)</option>
                             <option value="zh-CN-XiaoyiNeural">晓伊 (女)</option>
                         </select>
                     ) : ttsEngine === "kokoro" ? (
-                        <select
-                            value={voice}
-                            onChange={(e) => setVoice(e.target.value)}
-                            disabled={disabled}
-                            style={{
-                                width: '100%',
-                                padding: '0.8rem',
-                                borderRadius: '8px',
-                                border: '1px solid var(--border-color)',
-                                background: 'rgba(255, 255, 255, 0.05)',
-                                color: 'var(--text-primary)',
-                                outline: 'none'
-                            }}
-                        >
+                        <select value={voice} onChange={(e) => setVoice(e.target.value)} disabled={disabled} style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'rgba(255, 255, 255, 0.05)', color: 'var(--text-primary)', outline: 'none' }}>
                             <option value="af_heart">af_heart (默认)</option>
                             <option value="af_alloy">af_alloy</option>
                             <option value="am_adam">am_adam</option>
                         </select>
                     ) : ttsEngine === "omnivoice" ? (
-                        <select
-                            value={voice}
-                            onChange={(e) => setVoice(e.target.value)}
-                            disabled={disabled}
-                            style={{
-                                width: '100%',
-                                padding: '0.8rem',
-                                borderRadius: '8px',
-                                border: '1px solid var(--border-color)',
-                                background: 'rgba(255, 255, 255, 0.05)',
-                                color: 'var(--text-primary)',
-                                outline: 'none'
-                            }}
-                        >
+                        <select value={voice} onChange={(e) => setVoice(e.target.value)} disabled={disabled} style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'rgba(255, 255, 255, 0.05)', color: 'var(--text-primary)', outline: 'none' }}>
                             <option value="女">女声默认 (女)</option>
                             <option value="男">男声默认 (男)</option>
                             <option value="女，低音调">女声 - 低音 (女，低音调)</option>
@@ -295,27 +262,11 @@ export const ImageVideoForm: React.FC<ImageVideoFormProps> = ({
                             <option value="男，老年">男声 - 老年 (男，老年)</option>
                         </select>
                     ) : (
-                        <input
-                            type="text"
-                            value={voice}
-                            onChange={(e) => setVoice(e.target.value)}
-                            placeholder="自定义Voice/风格指令"
-                            disabled={disabled}
-                            style={{
-                                width: '100%',
-                                padding: '0.8rem',
-                                borderRadius: '8px',
-                                border: '1px solid var(--border-color)',
-                                background: 'rgba(255, 255, 255, 0.05)',
-                                color: 'var(--text-primary)',
-                                outline: 'none'
-                            }}
-                        />
+                        <input type="text" value={voice} onChange={(e) => setVoice(e.target.value)} placeholder="自定义Voice指令" disabled={disabled} style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'rgba(255, 255, 255, 0.05)', color: 'var(--text-primary)', outline: 'none' }} />
                     )}
                 </div>
             </div>
 
-            {/* Advanced TTS Settings (same as TTSVideoForm) */}
             <details style={{ background: 'rgba(0,0,0,0.2)', padding: '1rem', borderRadius: '12px', marginBottom: '1.5rem', border: '1px solid rgba(255,255,255,0.05)' }}>
                 <summary style={{ cursor: 'pointer', fontWeight: 500, userSelect: 'none' }}>高级配置 (ChatTTS/OmniVoice)</summary>
                 <div className="form-group grid" style={{ marginTop: '1rem', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1rem' }}>
@@ -332,7 +283,7 @@ export const ImageVideoForm: React.FC<ImageVideoFormProps> = ({
                         <input type="number" value={topK} onChange={(e) => setTopK(parseInt(e.target.value))} disabled={disabled} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'rgba(255, 255, 255, 0.05)', color: 'var(--text-primary)', outline: 'none' }} />
                     </div>
                     <div>
-                        <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>Speed (速度)</label>
+                        <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>Speed</label>
                         <input type="number" step="0.1" value={speed} onChange={(e) => setSpeed(parseFloat(e.target.value))} disabled={disabled} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'rgba(255, 255, 255, 0.05)', color: 'var(--text-primary)', outline: 'none' }} />
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center' }}>
@@ -349,9 +300,9 @@ export const ImageVideoForm: React.FC<ImageVideoFormProps> = ({
                 </div>
             </details>
 
-            <button type="submit" className="btn btn-primary" style={{ width: '100%', padding: '12px', fontSize: '1rem', justifyContent: 'center' }} disabled={disabled || !image || !text.trim()}>
+            <button type="submit" className="btn btn-primary" style={{ width: '100%', padding: '12px', fontSize: '1rem', justifyContent: 'center' }} disabled={disabled || !image || !mainText.trim()}>
                 <Play size={18} />
-                开始生成图文视频
+                开始生成资讯播报
             </button>
         </form>
     );

@@ -798,6 +798,149 @@ def process_image_video_pipeline(
         task_manager.update_status(1.0, f"合成失败: {str(e)}", "error")
         print(traceback.format_exc())
 
+def process_news_video_pipeline(
+    task_id: str,
+    opening_hook: str,
+    main_text: str,
+    ending_hook: str,
+    tts_engine: str = "edge",
+    voice: str = "",
+    temperature: float = 0.3,
+    top_p: float = 0.7,
+    top_k: int = 20,
+    speed: float = 5,
+    refine_text: bool = True,
+    cover_title: str = "",
+    ending_title: str = "",
+    bgm: str = ""
+):
+    """Background task for News Broadcast Video generation."""
+    task_manager = TaskManager(task_id=task_id)
+    try:
+        task_manager.update_status(0.1, f"正在生成语音 ({tts_engine})...", "processing", task_type="news_video")
+        
+        # Combine text for TTS
+        full_text = []
+        if opening_hook.strip():
+            full_text.append(opening_hook.strip())
+        if main_text.strip():
+            full_text.append(main_text.strip())
+        if ending_hook.strip():
+            full_text.append(ending_hook.strip())
+            
+        combined_text = "\n".join(full_text)
+        
+        # Save raw text as subtitle for UI display
+        subtitle_dir = task_manager.get_dir("subtitle")
+        with open(subtitle_dir / "subtitle.txt", 'w', encoding='utf-8') as f:
+            f.write(combined_text)
+        
+        audio_dir = task_manager.get_dir("audio")
+        output_base = audio_dir / "tts_output"
+        
+        # 1. Generate TTS
+        if tts_engine == "kokoro":
+            voice = voice or "af_heart"
+            from tts.kokoro_processor import run_kokoro_tts_sync
+            audio_path, json_path = run_kokoro_tts_sync(combined_text, str(output_base), voice=voice)
+        elif tts_engine == "chattts":
+            from tts.chattts_processor import run_chattts_sync
+            audio_path, json_path = run_chattts_sync(
+                combined_text, str(output_base), voice=voice,
+                temperature=temperature, top_p=top_p, top_k=top_k, 
+                speed=speed, refine_text_flag=refine_text
+            )
+        elif tts_engine == "omnivoice":
+            from tts.omnivoice_processor import run_omnivoice_tts_sync
+            audio_path, json_path = run_omnivoice_tts_sync(combined_text, str(output_base), voice_instruct=voice)
+        else:
+            voice = voice or "zh-CN-XiaoxiaoNeural"
+            from tts.processor import run_tts_sync
+            audio_path, json_path = run_tts_sync(combined_text, str(output_base), voice=voice)
+
+        task_manager.update_status(0.5, "正在配置视频布局...", "processing")
+        
+        with open(json_path, 'r', encoding='utf-8') as f:
+            captions = json.load(f)
+            
+        import re
+        def clean_for_match(t):
+            if not t: return ""
+            t = re.sub(r'\[.*?\]\s*', '', t).strip()
+            return re.sub(r'[，。！？、；：“”‘’（）《》【】.,!?;:\'\"()\[\]<>\-~\s]', '', t).strip()
+            
+        clean_open = clean_for_match(opening_hook)
+        clean_main = clean_for_match(main_text)
+        
+        matched_chars = 0
+        for c in captions:
+            if "text" in c:
+                c["text"] = re.sub(r'\[.*?\]\s*', '', c["text"]).strip()
+                c["text"] = re.sub(r'[，。！？、；：“”‘’（）《》【】.,!?;:\'\"()\[\]<>\-~]', '', c["text"]).strip()
+                
+                c_clean = clean_for_match(c["text"])
+                c_len = len(c_clean)
+                
+                if matched_chars < len(clean_open):
+                    c["isMain"] = False
+                elif matched_chars < len(clean_open) + len(clean_main):
+                    c["isMain"] = True
+                else:
+                    c["isMain"] = False
+                    
+                matched_chars += c_len
+        
+        # Determine image
+        images_dir = task_manager.get_dir("images")
+        image_files = list(images_dir.glob("*"))
+        if not image_files:
+            raise FileNotFoundError("未找到上传的图片！")
+            
+        img_name = image_files[0].name
+        
+        # 2. Prepare Remotion Props for NewsScene
+        audio_rel_path = f"tasks/{task_id}/audio/{Path(audio_path).name}"
+        img_rel_path = f"tasks/{task_id}/images/{img_name}"
+        
+        props = {
+            "captions": captions, # Passed mainly for timing info
+            "mainText": main_text, # Passed for scrolling
+            "imageUrl": img_rel_path,
+            "audioUrl": audio_rel_path,
+            "fontSize": 70
+        }
+        if cover_title:
+            props["coverTitle"] = cover_title
+        if ending_title:
+            props["endingTitle"] = ending_title
+        if bgm:
+            props["bgm"] = bgm
+        
+        shuo_json_path = audio_dir / "shuo.json"
+        with open(shuo_json_path, 'w', encoding='utf-8') as f:
+            json.dump(props, f, ensure_ascii=False, indent=2)
+            
+        task_manager.update_status(0.6, "正在合成视频...", "processing")
+        
+        video_output = task_manager.get_dir("videos") / "remotion_video.mp4"
+        total_duration_ms = captions[-1]["endMs"] if captions else 3000
+        duration_frames = int((total_duration_ms / 1000) * 30) + 30
+        if cover_title:
+            duration_frames += 60 # 2 seconds cover
+        if ending_title:
+            duration_frames += 60 # 2 seconds ending animation
+        
+        from video.remotion_renderer import run_remotion_render
+        run_remotion_render(shuo_json_path, video_output, duration_frames=duration_frames, composition_id="NewsScene")
+        
+        task_manager.update_status(1.0, "合成成功！", "completed")
+        
+    except Exception as e:
+        import traceback
+        task_manager.update_status(1.0, f"合成失败: {str(e)}", "error")
+        print(traceback.format_exc())
+
+
 @app.post("/api/image_video")
 async def generate_image_video(
     background_tasks: BackgroundTasks,
@@ -841,6 +984,57 @@ async def generate_image_video(
     )
     
     return {"task_id": task_id, "message": "Image Video Task started."}
+
+@app.post("/api/news_video")
+async def generate_news_video(
+    background_tasks: BackgroundTasks,
+    image: UploadFile = File(...),
+    opening_hook: str = Form(""),
+    main_text: str = Form(...),
+    ending_hook: str = Form(""),
+    tts_engine: str = Form("edge"),
+    voice: str = Form(""),
+    temperature: float = Form(0.3),
+    top_p: float = Form(0.7),
+    top_k: int = Form(20),
+    speed: float = Form(1.0),
+    refine_text: bool = Form(True),
+    cover_title: str = Form(""),
+    ending_title: str = Form(""),
+    bgm: str = Form("")
+):
+    """Endpoint for News Broadcast Video generation."""
+    task_manager = TaskManager()
+    task_id = task_manager.task_id
+    task_manager.update_status(0.01, "初始化资讯播报任务...", "processing", task_type="news_video")
+    
+    # Save uploaded image
+    images_dir = task_manager.get_dir("images")
+    file_path = images_dir / image.filename
+    with open(file_path, "wb") as f:
+        f.write(await image.read())
+
+    # Start pipeline
+    background_tasks.add_task(
+        process_news_video_pipeline,
+        task_id=task_id,
+        opening_hook=opening_hook,
+        main_text=main_text,
+        ending_hook=ending_hook,
+        tts_engine=tts_engine,
+        voice=voice,
+        temperature=temperature,
+        top_p=top_p,
+        top_k=top_k,
+        speed=speed,
+        refine_text=refine_text,
+        cover_title=cover_title,
+        ending_title=ending_title,
+        bgm=bgm
+    )
+    
+    return {"task_id": task_id, "message": "News Video Task started."}
+
     
 @app.post("/api/audio_transcribe")
 async def audio_transcribe(

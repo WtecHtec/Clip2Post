@@ -303,3 +303,57 @@ export const getBgms = async (): Promise<string[]> => {
     return [];
   }
 };
+
+export interface NewsVideoOptions {
+  openingHook?: string;
+  mainText: string;
+  endingHook?: string;
+  ttsEngine: string;
+  voice: string;
+  temperature?: number;
+  top_p?: number;
+  top_k?: number;
+  speed?: number;
+  refine_text?: boolean;
+  coverTitle?: string;
+  endingTitle?: string;
+  bgm?: string;
+}
+
+export const generateNewsVideo = async (options: NewsVideoOptions, image: File): Promise<string> => {
+  const formData = new FormData();
+  if (options.openingHook) formData.append('opening_hook', options.openingHook);
+  formData.append('main_text', options.mainText);
+  if (options.endingHook) formData.append('ending_hook', options.endingHook);
+  
+  formData.append('tts_engine', options.ttsEngine);
+  formData.append('voice', options.voice);
+  if (options.temperature !== undefined) formData.append('temperature', String(options.temperature));
+  if (options.top_p !== undefined) formData.append('top_p', String(options.top_p));
+  if (options.top_k !== undefined) formData.append('top_k', String(options.top_k));
+  if (options.speed !== undefined) formData.append('speed', String(options.speed));
+  if (options.refine_text !== undefined) formData.append('refine_text', String(options.refine_text));
+  
+  if (options.coverTitle) formData.append('cover_title', options.coverTitle);
+  if (options.endingTitle) formData.append('ending_title', options.endingTitle);
+  if (options.bgm) formData.append('bgm', options.bgm);
+
+  formData.append('image', image);
+
+  const response = await fetch(`${API_BASE_URL}/news_video`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    let errorMessage = response.statusText;
+    try {
+      const errorData = await response.json();
+      if (errorData.error) errorMessage = errorData.error;
+    } catch (e) { }
+    throw new Error(`News Video generation failed: ${errorMessage}`);
+  }
+
+  const data = await response.json();
+  return data.task_id;
+};

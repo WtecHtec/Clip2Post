@@ -4,6 +4,7 @@ import { MyAnimation as TypewriterAnimation } from '../skills/remotion/rules/ass
 import { MyAnimation as WordHighlightAnimation } from '../skills/remotion/rules/assets/text-animations-word-highlight';
 import { MyScene, MySceneSchema } from './MyScene';
 import { ImageScene, ImageSceneSchema } from './ImageScene';
+import { NewsScene, NewsSceneSchema } from './NewsScene';
 
 export const RemotionRoot = () => {
 	return (
@@ -68,6 +69,21 @@ export const RemotionRoot = () => {
 						{ text: '显示字幕的全新模式', startMs: 2100, endMs: 5000 },
 					],
 					imageUrl: 'tasks/dummy_image.jpg',
+				}}
+			/>
+			<Composition
+				id="NewsScene"
+				component={NewsScene}
+				durationInFrames={300}
+				fps={30}
+				width={1080}
+				height={1920}
+				schema={NewsSceneSchema}
+				defaultProps={{
+					mainText: '这是测试的一段非常长的正文内容，会从屏幕下方滚动到上方。',
+					imageUrl: 'tasks/dummy_image.jpg',
+					coverTitle: '突发新闻',
+					endingTitle: '谢谢观看',
 				}}
 			/>
 		</>

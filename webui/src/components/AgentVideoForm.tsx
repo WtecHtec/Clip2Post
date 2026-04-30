@@ -283,7 +283,13 @@ export const AgentVideoForm: React.FC<AgentVideoFormProps> = ({ llmSettings, onT
                                     border: '1px solid rgba(255,255,255,0.1)',
                                     fontSize: '0.85rem'
                                 }}>
-                                    <input type="radio" name="agent_engine" value={engine} checked={ttsEngine === engine} onChange={() => setTtsEngine(engine)} style={{ display: 'none' }} />
+                                    <input type="radio" name="agent_engine" value={engine} checked={ttsEngine === engine} onChange={() => {
+                                        setTtsEngine(engine);
+                                        if (engine === 'edge') setVoice('zh-CN-XiaoxiaoNeural');
+                                        else if (engine === 'kokoro') setVoice('af_heart');
+                                        else if (engine === 'omnivoice') setVoice('女');
+                                        else setVoice('');
+                                    }} style={{ display: 'none' }} />
                                     {engine.toUpperCase()}
                                 </label>
                             ))}
@@ -371,6 +377,23 @@ export const AgentVideoForm: React.FC<AgentVideoFormProps> = ({ llmSettings, onT
                                 }}
                             />
                         )}
+                    </div>
+                    
+                    <div style={{ gridColumn: '1 / -1', marginBottom: '1rem' }}>
+                        <h4 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem', opacity: 0.8 }}>
+                            🎵 视频背景音乐 (BGM)
+                        </h4>
+                        <select
+                            value={bgm}
+                            onChange={(e) => setBgm(e.target.value)}
+                            disabled={disabled}
+                            style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(0,0,0,0.2)', color: 'white', outline: 'none' }}
+                        >
+                            <option value="">无背景音乐 (None)</option>
+                            {bgmList.map(b => (
+                                <option key={b} value={b}>{b}</option>
+                            ))}
+                        </select>
                     </div>
 
                     <div>
