@@ -18,34 +18,39 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
     submitLabel = 'Generate Dynamic Video'
 }) => {
     const [prompt, setPrompt] = useState(() => {
-        if (initialPrompt) return initialPrompt;
-        return localStorage.getItem('dynamic-video-prompt') || '帮我生成一期关于AI和人工智能的视频';
+        const cached = localStorage.getItem('dynamic-video-prompt');
+        return cached || initialPrompt || '帮我生成一期关于AI和人工智能的视频';
     });
+
+    const [ttsEngine, setTtsEngine] = useState(() => localStorage.getItem('dynamic-video-ttsEngine') || 'edge');
+    const [voice, setVoice] = useState(() => localStorage.getItem('dynamic-video-voice') || '');
+    const [preset, setPreset] = useState(() => localStorage.getItem('dynamic-video-preset') || 'default');
+    const [refineText, setRefineText] = useState(() => localStorage.getItem('dynamic-video-refineText') === 'false' ? false : true);
+    const [bgm, setBgm] = useState<string>(() => localStorage.getItem('dynamic-video-bgm') || '');
+    const [bgmList, setBgmList] = useState<string[]>([]);
+
+    // Advanced parameters
+    const [temperature, setTemperature] = useState(() => parseFloat(localStorage.getItem('dynamic-video-temperature') || '0.3'));
+    const [topP, setTopP] = useState(() => parseFloat(localStorage.getItem('dynamic-video-topP') || '0.7'));
+    const [topK, setTopK] = useState(() => parseInt(localStorage.getItem('dynamic-video-topK') || '20'));
+    const [speed, setSpeed] = useState(() => parseFloat(localStorage.getItem('dynamic-video-speed') || '1.0'));
 
     useEffect(() => {
         localStorage.setItem('dynamic-video-prompt', prompt);
-    }, [prompt]);
-
-    const [ttsEngine, setTtsEngine] = useState('edge');
-    const [voice, setVoice] = useState('');
-    const [preset, setPreset] = useState('default');
-    const [refineText, setRefineText] = useState(true);
-    const [bgm, setBgm] = useState<string>('');
-    const [bgmList, setBgmList] = useState<string[]>([]);
+        localStorage.setItem('dynamic-video-ttsEngine', ttsEngine);
+        localStorage.setItem('dynamic-video-voice', voice);
+        localStorage.setItem('dynamic-video-preset', preset);
+        localStorage.setItem('dynamic-video-refineText', refineText.toString());
+        localStorage.setItem('dynamic-video-bgm', bgm);
+        localStorage.setItem('dynamic-video-temperature', temperature.toString());
+        localStorage.setItem('dynamic-video-topP', topP.toString());
+        localStorage.setItem('dynamic-video-topK', topK.toString());
+        localStorage.setItem('dynamic-video-speed', speed.toString());
+    }, [prompt, ttsEngine, voice, preset, refineText, bgm, temperature, topP, topK, speed]);
 
     useEffect(() => {
         import('../api').then(mod => mod.getBgms().then(setBgmList));
     }, []);
-
-    // Advanced parameters
-    const [temperature, setTemperature] = useState(0.3);
-    const [topP, setTopP] = useState(0.7);
-    const [topK, setTopK] = useState(20);
-    const [speed, setSpeed] = useState(1.0);
-
-    useEffect(() => {
-        if (initialPrompt) setPrompt(initialPrompt);
-    }, [initialPrompt]);
 
     useEffect(() => {
         if (initialOptions) {
