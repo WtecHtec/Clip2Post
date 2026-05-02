@@ -1111,6 +1111,61 @@ async def audio_render(
     background_tasks.add_task(render_job)
     return {"task_id": task_id, "message": "Render started."}
 
+@app.post("/api/tts")
+async def generate_tts_api(
+    text: str = Form(...),
+    tts_engine: str = Form("edge"),
+    voice: str = Form(""),
+    temperature: float = Form(0.3),
+    top_p: float = Form(0.7),
+    top_k: int = Form(20),
+    speed: float = Form(5.0),
+    refine_text: bool = Form(True),
+    save_path: str = Form(...)
+):
+    """Independent API to generate TTS audio and save it to the specified path."""
+    try:
+        from pathlib import Path
+        output_path = Path(save_path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        output_base = str(output_path.with_suffix(''))
+
+        # Generate TTS
+        if tts_engine == "kokoro":
+            voice = voice or "af_heart"
+            from tts.kokoro_processor import run_kokoro_tts_sync
+            audio_path, json_path = run_kokoro_tts_sync(text, output_base, voice=voice)
+        elif tts_engine == "chattts":
+            from tts.chattts_processor import run_chattts_sync
+            audio_path, json_path = run_chattts_sync(
+                text, output_base, voice=voice,
+                temperature=temperature, top_p=top_p, top_k=top_k, 
+                speed=speed, refine_text_flag=refine_text
+            )
+        elif tts_engine == "omnivoice":
+            from tts.omnivoice_processor import run_omnivoice_tts_sync
+            audio_path, json_path = run_omnivoice_tts_sync(text, output_base, voice_instruct=voice)
+        else:
+            voice = voice or "zh-CN-XiaoxiaoNeural"
+            from tts.processor import run_tts_sync
+            audio_path, json_path = run_tts_sync(text, output_base, voice=voice)
+
+        final_audio_path = Path(audio_path)
+        audio_path_to_return = str(final_audio_path)
+        
+        # If the requested save_path has a specific extension that differs from what the engine output
+        if final_audio_path.absolute() != output_path.absolute() and output_path.suffix:
+            import shutil
+            shutil.move(str(final_audio_path), str(output_path))
+            audio_path_to_return = str(output_path)
+
+        return {"status": "success", "save_path": audio_path_to_return}
+
+    except Exception as e:
+        import traceback
+        return JSONResponse(status_code=500, content={"error": f"TTS generation failed: {str(e)}\n{traceback.format_exc()}"})
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
