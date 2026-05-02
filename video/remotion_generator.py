@@ -141,7 +141,7 @@ registerRoot(RemotionRoot);
                 messages.append({"role": "assistant", "content": f"```tsx\n{code}\n```"})
                 messages.append({
                     "role": "user", 
-                    "content": f"The rendering failed with the following error:\n\n{current_error}\n\nPlease fix the code and return the entire corrected file."
+                    "content": f"The rendering failed with the following error:\n\n{current_error}\n\n请仔细分析报错原因（例如语法错误、未定义的变量、不合法的动画参数等），根据报错信息进行修复，并返回完整的修复后的 TSX 代码文件。"
                 })
 
         raise RuntimeError(f"Failed to generate and render valid Remotion template after {max_retries} retries. Last error: {current_error}")
