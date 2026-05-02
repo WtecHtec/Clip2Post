@@ -248,6 +248,129 @@ def process_tts_render_pipeline(
         task_manager.update_status(1.0, f"合成失败: {str(e)}", "error")
         print(traceback.format_exc())
 
+def process_dynamic_video_pipeline(
+    task_id: str,
+    prompt: str,
+    tts_engine: str = "edge",
+    voice: str = "",
+    temperature: float = 0.3,
+    top_p: float = 0.7,
+    top_k: int = 20,
+    speed: float = 5,
+    refine_text: bool = True,
+    bgm: str = ""
+):
+    """Background task for LLM Dynamic Template Video generation."""
+    task_manager = TaskManager(task_id=task_id)
+    try:
+        from video.llm_provider import get_llm_provider
+        from video.remotion_generator import RemotionGenerator
+        provider = get_llm_provider("mimo")
+
+        task_manager.update_status(0.05, "正在构思视频文案与风格...", "processing", task_type="dynamic_video")
+        
+        # Step 1: Generate Voiceover and Visual Style
+        prompt_path = Path(__file__).parent / "video" / "prompts" / "dynamic_video_director.txt"
+        with open(prompt_path, "r", encoding="utf-8") as f:
+            system_msg = f.read()
+
+        messages = [
+            {"role": "system", "content": system_msg.strip()},
+            {"role": "user", "content": prompt}
+        ]
+        
+        llm_resp = provider.generate(messages)
+        
+        # Parse JSON
+        import re, json
+        match = re.search(r'\{.*\}', llm_resp, re.DOTALL)
+        if not match:
+            raise ValueError(f"Failed to parse JSON from LLM: {llm_resp}")
+            
+        data = json.loads(match.group(0))
+        voiceover_text = data.get("voiceover", "").strip()
+        visual_style = data.get("visual_style", "").strip()
+        
+        if not voiceover_text:
+            raise ValueError("LLM generated empty voiceover.")
+
+        task_manager.update_status(0.1, f"正在生成语音 ({tts_engine})...", "processing", task_type="dynamic_video")
+        
+        # Save raw text as subtitle for UI display
+        subtitle_dir = task_manager.get_dir("subtitle")
+        with open(subtitle_dir / "subtitle.txt", 'w', encoding='utf-8') as f:
+            f.write(voiceover_text)
+        
+        audio_dir = task_manager.get_dir("audio")
+        output_base = audio_dir / "tts_output"
+        
+        # 2. Generate TTS
+        if tts_engine == "kokoro":
+            voice = voice or "af_heart"
+            from tts.kokoro_processor import run_kokoro_tts_sync
+            audio_path, json_path = run_kokoro_tts_sync(voiceover_text, str(output_base), voice=voice)
+        elif tts_engine == "chattts":
+            from tts.chattts_processor import run_chattts_sync
+            audio_path, json_path = run_chattts_sync(
+                voiceover_text, str(output_base), voice=voice,
+                temperature=temperature, top_p=top_p, top_k=top_k, 
+                speed=speed, refine_text_flag=refine_text
+            )
+        elif tts_engine == "omnivoice":
+            from tts.omnivoice_processor import run_omnivoice_tts_sync
+            audio_path, json_path = run_omnivoice_tts_sync(voiceover_text, str(output_base), voice_instruct=voice)
+        else:
+            voice = voice or "zh-CN-XiaoxiaoNeural"
+            from tts.processor import run_tts_sync
+            audio_path, json_path = run_tts_sync(voiceover_text, str(output_base), voice=voice)
+
+        task_manager.update_status(0.4, "正在使用 LLM 生成动态视频模板...", "processing")
+        
+        with open(json_path, 'r', encoding='utf-8') as f:
+            captions = json.load(f)
+            
+        import re
+        for c in captions:
+            if "text" in c:
+                c["text"] = re.sub(r'\[.*?\]\s*', '', c["text"]).strip()
+        
+        audio_rel_path = f"tasks/{task_id}/audio/{Path(audio_path).name}"
+        
+        props = {
+            "captions": captions,
+            "audioUrl": audio_rel_path,
+        }
+        if bgm:
+            props["bgm"] = bgm
+            
+        video_output = task_manager.get_dir("videos") / "remotion_video.mp4"
+        total_duration_ms = captions[-1]["endMs"] if captions else 3000
+        duration_frames = int((total_duration_ms / 1000) * 30) + 30
+        
+        remotion_dir = Path(__file__).parent / "skills" / "remotion"
+        generator = RemotionGenerator(remotion_dir, provider)
+        
+        task_manager.update_status(0.6, "正在渲染动态模板...", "processing")
+        
+        # Combine user prompt and the generated visual style for the component generator
+        combined_intent = f"User Request: {prompt}\n\nVisual Style Directives:\n{visual_style}"
+        
+        generator.generate_and_render(
+            user_intent=combined_intent,
+            props=props,
+            output_path=str(video_output),
+            duration_frames=duration_frames,
+            max_retries=3
+        )
+        
+        task_manager.update_status(1.0, "合成成功！", "completed")
+        
+    except Exception as e:
+        import traceback
+        task_manager.update_status(1.0, f"合成失败: {str(e)}", "error")
+        print(traceback.format_exc())
+
+
 @app.post("/api/upload")
 async def upload_video(
     background_tasks: BackgroundTasks, 
@@ -1034,6 +1157,41 @@ async def generate_news_video(
     )
     
     return {"task_id": task_id, "message": "News Video Task started."}
+
+
+@app.post("/api/dynamic_video")
+async def generate_dynamic_video(
+    background_tasks: BackgroundTasks,
+    prompt: str = Form(...),
+    tts_engine: str = Form("edge"),
+    voice: str = Form(""),
+    temperature: float = Form(0.3),
+    top_p: float = Form(0.7),
+    top_k: int = Form(20),
+    speed: float = Form(1.0),
+    refine_text: bool = Form(True),
+    bgm: str = Form("")
+):
+    """Endpoint for LLM Dynamic Template Video generation."""
+    task_manager = TaskManager()
+    task_id = task_manager.task_id
+    task_manager.update_status(0.01, "初始化动态模板任务...", "processing", task_type="dynamic_video")
+    
+    background_tasks.add_task(
+        process_dynamic_video_pipeline,
+        task_id=task_id,
+        prompt=prompt,
+        tts_engine=tts_engine,
+        voice=voice,
+        temperature=temperature,
+        top_p=top_p,
+        top_k=top_k,
+        speed=speed,
+        refine_text=refine_text,
+        bgm=bgm
+    )
+    
+    return {"task_id": task_id, "message": "Dynamic Video Task started."}
 
     
 @app.post("/api/audio_transcribe")

@@ -32,3 +32,5 @@ tasks/*
 /asset/*
 *.mp3
 **/public/*
+/llm_logs/*
+**/dynamic/*

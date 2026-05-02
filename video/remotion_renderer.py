@@ -34,7 +34,7 @@ class RemotionRenderer:
                 except Exception as e:
                     print(f"      Warning: Failed to create BGM symlink: {e}")
 
-    def render(self, props_path, output_path, duration_frames=300, composition_id="MyScene"):
+    def render(self, props_path, output_path, duration_frames=300, composition_id="MyScene", entry_file="src/index.ts"):
         """
         Render video using Remotion CLI.
         """
@@ -46,7 +46,7 @@ class RemotionRenderer:
 
         cmd = [
             "npx", "remotion", "render",
-            "src/index.ts", composition_id,
+            entry_file, composition_id,
             str(output_path),
             f"--props={str(props_path)}",
             f"--duration={duration_frames}"
@@ -62,7 +62,8 @@ class RemotionRenderer:
                 cwd=str(self.remotion_dir),
                 check=True,
                 capture_output=True,
-                text=True
+                text=True,
+                timeout=600
             )
             print(f"      Render successful: {output_path}")
             return str(output_path)
@@ -70,8 +71,8 @@ class RemotionRenderer:
             print(f"      Error during Remotion render: {e.stderr}")
             raise e
 
-def run_remotion_render(props_path, output_path, duration_frames=300, composition_id="MyScene"):
+def run_remotion_render(props_path, output_path, duration_frames=300, composition_id="MyScene", entry_file="src/index.ts"):
     # Default path relative to project root
     remotion_dir = Path(__file__).parent.parent / "skills" / "remotion"
     renderer = RemotionRenderer(remotion_dir)
-    return renderer.render(props_path, output_path, duration_frames, composition_id)
+    return renderer.render(props_path, output_path, duration_frames, composition_id, entry_file)

@@ -10,12 +10,13 @@ import { AgentVideoForm } from './components/AgentVideoForm';
 import { AudioVideoForm } from './components/AudioVideoForm';
 import { ImageVideoForm } from './components/ImageVideoForm';
 import { NewsVideoForm } from './components/NewsVideoForm';
+import { DynamicVideoForm } from './components/DynamicVideoForm';
 import { ResultsDisplay } from './components/ResultsDisplay';
 import { SettingsPanel } from './components/SettingsPanel';
 import type { LLMSettings } from './components/SettingsPanel';
 
 function App() {
-  const [workflowMode, setWorkflowMode] = useState<'video-to-post' | 'text-to-video' | 'audio-to-video' | 'image-to-video' | 'news-video'>('video-to-post');
+  const [workflowMode, setWorkflowMode] = useState<'video-to-post' | 'text-to-video' | 'audio-to-video' | 'image-to-video' | 'news-video' | 'dynamic-video'>('video-to-post');
   const [tasks, setTasks] = useState<TaskOverview[]>([]);
   const [file, setFile] = useState<File | null>(null);
   const [videoUrl, setVideoUrl] = useState<string>('');
@@ -175,6 +176,20 @@ function App() {
     }
   };
 
+  const handleDynamicVideoGenerate = async (options: import('./api').DynamicVideoOptions) => {
+    try {
+      setStatus({ progress: 0.1, desc: '初始化动态模板...', state: 'pending' });
+      setResults(null);
+      const { generateDynamicVideo } = await import('./api');
+      const newTaskId = await generateDynamicVideo(options);
+      setTaskId(newTaskId);
+      loadTasks();
+    } catch (err) {
+      console.error(err);
+      setStatus({ progress: 0, desc: '生成失败', state: 'error' });
+    }
+  };
+
   const handleReGenerate = (options: TTSOptions) => {
     setWorkflowMode('text-to-video');
     setReGenerateOptions(options);
@@ -263,6 +278,13 @@ function App() {
                 <MessageSquare size={18} />
                 News Broadcast
               </button>
+              <button
+                className={workflowMode === 'dynamic-video' ? 'segmented-btn active' : 'segmented-btn'}
+                onClick={() => { setWorkflowMode('dynamic-video'); resetToUpload(); }}
+              >
+                <Sparkles size={18} />
+                LLM Dynamic
+              </button>
             </div>
           </div>
 
@@ -320,6 +342,11 @@ function App() {
               ) : workflowMode === 'news-video' ? (
                 <NewsVideoForm
                   onGenerate={handleNewsVideoGenerate}
+                  disabled={status?.state === 'pending' || status?.state === 'processing'}
+                />
+              ) : workflowMode === 'dynamic-video' ? (
+                <DynamicVideoForm
+                  onGenerate={handleDynamicVideoGenerate}
                   disabled={status?.state === 'pending' || status?.state === 'processing'}
                 />
               ) : (

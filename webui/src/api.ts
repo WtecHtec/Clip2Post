@@ -357,3 +357,45 @@ export const generateNewsVideo = async (options: NewsVideoOptions, image: File):
   const data = await response.json();
   return data.task_id;
 };
+
+export interface DynamicVideoOptions {
+  prompt: string;
+  ttsEngine: string;
+  voice: string;
+  temperature?: number;
+  top_p?: number;
+  top_k?: number;
+  speed?: number;
+  refine_text?: boolean;
+  bgm?: string;
+}
+
+export const generateDynamicVideo = async (options: DynamicVideoOptions): Promise<string> => {
+  const formData = new FormData();
+  formData.append('prompt', options.prompt);
+  formData.append('tts_engine', options.ttsEngine);
+  formData.append('voice', options.voice);
+  if (options.temperature !== undefined) formData.append('temperature', String(options.temperature));
+  if (options.top_p !== undefined) formData.append('top_p', String(options.top_p));
+  if (options.top_k !== undefined) formData.append('top_k', String(options.top_k));
+  if (options.speed !== undefined) formData.append('speed', String(options.speed));
+  if (options.refine_text !== undefined) formData.append('refine_text', String(options.refine_text));
+  if (options.bgm) formData.append('bgm', options.bgm);
+
+  const response = await fetch(`${API_BASE_URL}/dynamic_video`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    let errorMessage = response.statusText;
+    try {
+      const errorData = await response.json();
+      if (errorData.error) errorMessage = errorData.error;
+    } catch (e) { }
+    throw new Error(`Dynamic Video generation failed: ${errorMessage}`);
+  }
+
+  const data = await response.json();
+  return data.task_id;
+};
