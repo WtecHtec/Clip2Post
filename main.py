@@ -38,6 +38,11 @@ app.add_middleware(
 # Mount tasks directory for static file access (images, html)
 app.mount("/tasks", StaticFiles(directory=str(TASKS_DIR)), name="tasks")
 
+# Mount bgm directory so Remotion can download BGM via http://localhost:8000/bgm/
+_BGM_DIR = Path(__file__).parent / "bgm"
+_BGM_DIR.mkdir(exist_ok=True)
+app.mount("/bgm", StaticFiles(directory=str(_BGM_DIR)), name="bgm")
+
 def process_video_pipeline(
     task_id: str, 
     video_path: Path, 
@@ -283,23 +288,52 @@ def process_dynamic_video_pipeline(
         task_log_dir = str(task_manager.get_dir("llm_logs"))
         llm_resp = provider.generate(messages, log_dir=task_log_dir)
         
-        # Parse JSON
+        # Parse JSON - robust multi-step approach
         import re, json
-        match = re.search(r'\{.*\}', llm_resp, re.DOTALL)
-        if not match:
-            raise ValueError(f"Failed to parse JSON from LLM: {llm_resp}")
+        
+        # Step 0: Strip <think>...</think> blocks emitted by reasoning models
+        llm_resp_clean = re.sub(r'<think>.*?</think>', '', llm_resp, flags=re.DOTALL).strip()
+        
+        # Step 1: Try extracting from ```json ... ``` code block
+        json_block_match = re.search(r'```(?:json)?\s*\n?(\{.*?\})\s*\n?```', llm_resp_clean, re.DOTALL)
+        if json_block_match:
+            raw_json = json_block_match.group(1)
+        else:
+            # Step 2: Try to find outermost { ... }
+            brace_match = re.search(r'\{.*\}', llm_resp_clean, re.DOTALL)
+            raw_json = brace_match.group(0) if brace_match else None
+
+        data = None
+        if raw_json:
+            # Try strict=False first
+            try:
+                data = json.loads(raw_json, strict=False)
+            except json.JSONDecodeError:
+                pass
             
-        try:
-            data = json.loads(match.group(0), strict=False)
-        except json.JSONDecodeError:
-            # Fallback: try to escape backslashes and see if that helps, or just take the raw string and clean it
-            cleaned_json = match.group(0).replace('\n', '\\n').replace('\r', '\\r')
-            data = json.loads(cleaned_json, strict=False)
+            if data is None:
+                # Try replacing literal newlines inside string values
+                try:
+                    # Replace literal newlines that appear inside JSON strings
+                    fixed = re.sub(r'(?<!\\)\n', r'\\n', raw_json)
+                    data = json.loads(fixed, strict=False)
+                except json.JSONDecodeError:
+                    pass
+
+        # Step 3: Field-by-field regex fallback  
+        if data is None:
+            voiceover_match = re.search(r'"voiceover"\s*:\s*"(.*?)"(?=\s*[,}])', llm_resp_clean, re.DOTALL)
+            visual_match = re.search(r'"visual_style"\s*:\s*"(.*?)"(?=\s*[,}])', llm_resp_clean, re.DOTALL)
+            data = {
+                "voiceover": voiceover_match.group(1).replace('\\n', '\n') if voiceover_match else "",
+                "visual_style": visual_match.group(1).replace('\\n', '\n') if visual_match else ""
+            }
+        
         voiceover_text = data.get("voiceover", "").strip()
         visual_style = data.get("visual_style", "").strip()
         
         if not voiceover_text:
-            raise ValueError("LLM generated empty voiceover.")
+            raise ValueError(f"LLM generated empty voiceover. Raw response: {llm_resp_clean[:300]}")
 
         task_manager.update_status(0.1, f"正在生成语音 ({tts_engine})...", "processing", task_type="dynamic_video")
         
@@ -341,11 +375,11 @@ def process_dynamic_video_pipeline(
             if "text" in c:
                 c["text"] = re.sub(r'\[.*?\]\s*', '', c["text"]).strip()
         
-        audio_rel_path = f"tasks/{task_id}/audio/{Path(audio_path).name}"
+        audio_abs_url = f"http://localhost:8000/tasks/{task_id}/audio/{Path(audio_path).name}"
         
         props = {
             "captions": captions,
-            "audioUrl": audio_rel_path,
+            "audioUrl": audio_abs_url,
         }
         if bgm:
             props["bgm"] = bgm
@@ -1198,7 +1232,8 @@ async def generate_dynamic_video(
         top_k=top_k,
         speed=speed,
         refine_text=refine_text,
-        bgm=bgm
+        bgm=bgm,
+        aspect_ratio=aspect_ratio
     )
     
     return {"task_id": task_id, "message": "Dynamic Video Task started."}

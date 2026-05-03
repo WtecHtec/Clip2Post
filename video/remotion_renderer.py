@@ -47,12 +47,17 @@ class RemotionRenderer:
         # Ensure output directory exists
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
+        # Resolve the absolute path to the public dir so remotion can always find static files,
+        # even when the webpack bundle is placed in a system temp directory.
+        public_dir_abs = str(self.remotion_dir / "public")
+
         cmd = [
             "npx", "remotion", "render",
             entry_file, composition_id,
             str(output_path),
             f"--props={str(props_path)}",
-            f"--duration={duration_frames}"
+            f"--duration={duration_frames}",
+            f"--public-dir={public_dir_abs}"
         ]
 
         print(f"      Running Remotion render command...")

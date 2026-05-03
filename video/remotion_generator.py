@@ -17,37 +17,94 @@ class RemotionGenerator:
 
     def extract_code(self, response: str) -> str:
         """Extracts the TSX code block from the LLM response, even if truncated."""
+        # Step 0: Strip <think>...</think> blocks emitted by reasoning models (e.g. MiMo)
+        response = re.sub(r'<think>.*?</think>', '', response, flags=re.DOTALL)
+        stripped = response.strip()
+        
+        # Immediate rejection: response is an error/compiler message, not code
+        # e.g. "/path/to/file.tsx:1:8: ERROR: Syntax error"
+        if re.match(r'^.*?\.tsx:\d+:\d+:\s*(ERROR|WARNING|error|warning):', stripped):
+            return ""
+        if stripped.startswith("ERROR:") or stripped.startswith("Error:"):
+            return ""
+        
         # Pattern to handle potentially truncated closing backticks
         pattern = r"```(?:tsx|typescript|ts|javascript|js)?\s*\n(.*?)(?:\n```|$)"
-        match = re.search(pattern, response, re.DOTALL)
+        match = re.search(pattern, stripped, re.DOTALL)
         if match:
             content = match.group(1).strip()
-            # If the content itself still ends with ```, strip it (unlikely but safe)
             return content.rstrip("`").strip()
         
         # Fallback: manually strip leading markdown if it exists
-        clean_response = response.strip()
-        if clean_response.startswith("```"):
-            lines = clean_response.splitlines()
+        if stripped.startswith("```"):
+            lines = stripped.splitlines()
             if len(lines) > 1:
                 return "\n".join(lines[1:]).strip().rstrip("`").strip()
         
-        return clean_response.rstrip("`").strip()
+        # Only return if it looks like code (has imports and exports)
+        if "import " in stripped and "export " in stripped:
+            return stripped.rstrip("`").strip()
+            
+        return ""
+
+    def is_valid_tsx(self, code: str) -> bool:
+        """Validates that the extracted content is actually TSX code, not an error message."""
+        if not code or len(code) < 50:
+            return False
+        # Must have imports and exports
+        if "import " not in code or "export " not in code:
+            return False
+        # Must not look like an error/compiler message
+        if re.search(r'\.tsx:\d+:\d+:\s*(ERROR|error|WARNING|warning):', code):
+            return False
+        # Must start with a code-like token (import, //, or whitespace before import)
+        first_line = code.lstrip().splitlines()[0] if code.strip() else ""
+        if first_line and not (first_line.startswith("import") or first_line.startswith("//") or first_line.startswith("/*")):
+            return False
+        return True
+
+    def cleanup_invalid_files(self):
+        """Remove any previously generated tsx files that contain error messages instead of code."""
+        for tsx_file in self.dynamic_dir.glob("DynamicScene-*.tsx"):
+            try:
+                content = tsx_file.read_text(encoding="utf-8")
+                if not self.is_valid_tsx(content):
+                    tsx_file.unlink()
+                    # Also remove corresponding index file
+                    index_file = self.dynamic_dir / f"index_{tsx_file.name}"
+                    if index_file.exists():
+                        index_file.unlink()
+                    print(f"      Cleaned up invalid file: {tsx_file.name}")
+            except Exception:
+                pass
 
     def generate_and_render(self, user_intent: str, props: dict, output_path: str, duration_frames: int = 300, max_retries: int = 3, log_dir: Optional[str] = None, aspect_ratio: str = "9:16") -> str:
         """
         Generates a dynamic Remotion component based on user intent, and attempts to render it.
         Includes a retry mechanism for syntax or rendering errors.
         """
+        # Cleanup any stale invalid files from previous runs
+        self.cleanup_invalid_files()
         prompt_path = Path(__file__).parent / "prompts" / "remotion_developer.txt"
         with open(prompt_path, "r", encoding="utf-8") as f:
             system_prompt = f.read()
         
-        # Adjust prompt based on aspect ratio
+        # Inject aspect ratio into prompt via placeholders
         width, height = (1080, 1920) if aspect_ratio == "9:16" else (1920, 1080)
-        system_prompt = system_prompt.replace("9:16 (1080x1920)", f"{aspect_ratio} ({width}x{height})")
-        system_prompt = system_prompt.replace("9:16", aspect_ratio)
-        system_prompt += f"\n\nCRITICAL: The video aspect ratio is {aspect_ratio} ({width}x{height}). Ensure all layouts and typography are optimized for this specific ratio."
+        orientation = "Portrait / 竖屏" if aspect_ratio == "9:16" else "Landscape / 横屏"
+        subtitle_placement = (
+            "字幕应放置在屏幕**中下部（高度 70%-85% 处）**或**正中央**"
+            if aspect_ratio == "9:16"
+            else "字幕应放置在屏幕**底部（高度 80%-90% 处）**，或采用左右分栏布局"
+        )
+        system_prompt = (system_prompt
+            .replace("{{ASPECT_RATIO}}", aspect_ratio)
+            .replace("{{WIDTH}}", str(width))
+            .replace("{{HEIGHT}}", str(height))
+            .replace("{{ORIENTATION}}", orientation)
+            .replace("{{SUBTITLE_PLACEMENT}}", subtitle_placement)
+        )
+        system_prompt += f"\n\nCRITICAL: The video is {aspect_ratio} ({width}x{height}). Design ALL layouts, font sizes, and element positions specifically for this resolution."
         
         user_prompt = f"""
 User Intent: {user_intent}
@@ -90,21 +147,25 @@ Please generate the Remotion component that visualizes this intent using the pro
                 continue
 
             code = self.extract_code(response)
+            if not self.is_valid_tsx(code):
+                print(f"      Warning: LLM did not return valid TSX code. Response starts with: {response[:120]}...")
+                current_error = "LLM did not return a valid TSX code block. Please ensure you ONLY output a ```tsx ... ``` code block containing valid TypeScript React code with proper imports and a default export."
+                continue
             
-            # Write the generated component
+            # Write the generated component (only after validation passes)
             with open(scene_path, "w", encoding="utf-8") as f:
                 f.write(code)
 
             # Write the entry point index file
             index_code = f"""
-import {{ registerRoot, Composition, AbsoluteFill, Audio, staticFile }} from 'remotion';
+import {{ registerRoot, Composition, AbsoluteFill, Audio }} from 'remotion';
 import DynamicComponent from './{scene_filename[:-4]}';
 
 const WrapperComponent = (props: any) => {{
     return (
         <AbsoluteFill>
-            {{props.audioUrl && <Audio src={{staticFile(props.audioUrl)}} />}}
-            {{props.bgm && <Audio src={{props.bgm.startsWith('http') ? props.bgm : staticFile(`bgm/${{props.bgm}}`)}} volume={{0.15}} />}}
+            {{props.audioUrl && <Audio src={{props.audioUrl}} />}}
+            {{props.bgm && <Audio src={{props.bgm.startsWith('http') ? props.bgm : `http://localhost:8000/bgm/${{props.bgm}}`}} volume={{0.15}} />}}
             <DynamicComponent {{...props}} />
         </AbsoluteFill>
     );
@@ -154,11 +215,17 @@ registerRoot(RemotionRoot);
                 if any(kw in current_error for kw in systemic_keywords):
                     raise RuntimeError(f"Systemic/Environment error detected during render. Aborting retry.\nError: {current_error}")
 
+                # Sanitize error: remove file-path lines that look like code to the LLM
+                sanitized_error = "\n".join(
+                    line for line in current_error.splitlines()
+                    if not re.match(r'^.*?\.tsx:\d+:\d+:', line)
+                )
+                
                 # Append the error to the conversation for the next retry
                 messages.append({"role": "assistant", "content": f"```tsx\n{code}\n```"})
                 messages.append({
                     "role": "user", 
-                    "content": f"The rendering failed with the following error:\n\n{current_error}\n\n请仔细分析报错原因（例如语法错误、未定义的变量、不合法的动画参数等），根据报错信息进行修复，并返回完整的修复后的 TSX 代码文件。"
+                    "content": f"The rendering failed with the following error:\n\n{sanitized_error}\n\n请仔细分析报错原因（例如语法错误、未定义的变量、不合法的动画参数等），根据报错信息进行修复，并返回完整的修复后的 TSX 代码文件。"
                 })
 
         raise RuntimeError(f"Failed to generate and render valid Remotion template after {max_retries} retries. Last error: {current_error}")

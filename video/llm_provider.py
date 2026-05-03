@@ -97,7 +97,7 @@ class MinimaxProvider(LLMProvider):
         request_args = {
             "model": self.model,
             "messages": messages,
-            "max_completion_tokens": kwargs.get("max_completion_tokens", 4096),
+            "max_completion_tokens": kwargs.get("max_completion_tokens", 16384),
             "temperature": kwargs.get("temperature", 0.7),
             "top_p": kwargs.get("top_p", 0.95),
             "stream": False,
