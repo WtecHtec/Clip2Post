@@ -34,6 +34,7 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
     const [topP, setTopP] = useState(() => parseFloat(localStorage.getItem('dynamic-video-topP') || '0.7'));
     const [topK, setTopK] = useState(() => parseInt(localStorage.getItem('dynamic-video-topK') || '20'));
     const [speed, setSpeed] = useState(() => parseFloat(localStorage.getItem('dynamic-video-speed') || '1.0'));
+    const [aspectRatio, setAspectRatio] = useState<'9:16' | '16:9'>(() => (localStorage.getItem('dynamic-video-aspectRatio') as '9:16' | '16:9') || '9:16');
 
     useEffect(() => {
         localStorage.setItem('dynamic-video-prompt', prompt);
@@ -46,7 +47,8 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
         localStorage.setItem('dynamic-video-topP', topP.toString());
         localStorage.setItem('dynamic-video-topK', topK.toString());
         localStorage.setItem('dynamic-video-speed', speed.toString());
-    }, [prompt, ttsEngine, voice, preset, refineText, bgm, temperature, topP, topK, speed]);
+        localStorage.setItem('dynamic-video-aspectRatio', aspectRatio);
+    }, [prompt, ttsEngine, voice, preset, refineText, bgm, temperature, topP, topK, speed, aspectRatio]);
 
     useEffect(() => {
         import('../api').then(mod => mod.getBgms().then(setBgmList));
@@ -99,7 +101,8 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
             top_k: topK,
             speed,
             refine_text: refineText,
-            bgm: bgm || undefined
+            bgm: bgm || undefined,
+            aspectRatio
         });
     };
 
@@ -129,6 +132,34 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
                             resize: 'vertical'
                         }}
                     />
+                </div>
+            </div>
+
+            <div style={{ marginBottom: '1.5rem', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                <h4 className="section-title" style={{ marginBottom: '1rem', fontSize: '1rem' }}>📐 视频比例 (Aspect Ratio)</h4>
+                <div style={{ display: 'flex', gap: '2rem' }}>
+                    <label className="radio-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                        <input
+                            type="radio"
+                            name="aspectRatio"
+                            value="9:16"
+                            checked={aspectRatio === '9:16'}
+                            onChange={() => setAspectRatio('9:16')}
+                            style={{ accentColor: 'var(--accent-primary)' }}
+                        />
+                        <span>9:16 (竖屏 / Portrait)</span>
+                    </label>
+                    <label className="radio-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                        <input
+                            type="radio"
+                            name="aspectRatio"
+                            value="16:9"
+                            checked={aspectRatio === '16:9'}
+                            onChange={() => setAspectRatio('16:9')}
+                            style={{ accentColor: 'var(--accent-primary)' }}
+                        />
+                        <span>16:9 (横屏 / Landscape)</span>
+                    </label>
                 </div>
             </div>
 

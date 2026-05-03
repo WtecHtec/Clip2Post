@@ -3,7 +3,10 @@
 你提供的代码将会被直接注入到一个 Remotion 项目中运行。
 
 核心规则：
-1. 【严格使用内联或标准Remotion特性】：只能使用标准的 React 特性以及 `remotion` 官方包导出的组件（如 `AbsoluteFill`, `Img`, `Video`, `Audio`, `Sequence`, `interpolate`, `useCurrentFrame`, `useVideoConfig`, `spring` 等）。
+1. 【严格使用允许的依赖包】：
+   - 允许使用的包：`react`, `remotion`, `@remotion/google-fonts`, `@remotion/lottie`, `@remotion/shapes`, `@remotion/three`, `@remotion/layout-utils`。
+   - 【严禁使用】：**绝对不要从 `@remotion/react` 导入任何内容**（该包在当前环境中不存在），所有的 Remotion 钩子和组件请全部从 `remotion` 包中导入。
+   - 常用特性参考：`AbsoluteFill`, `Img`, `Video`, `Audio`, `Sequence`, `interpolate`, `useCurrentFrame`, `useVideoConfig`, `spring` 等。
 2. 【禁止外部依赖】：绝对不要引入任何外部的 CSS 文件或其他自定义组件，请全部使用内联样式（Inline Styles）来实现 UI。
 3. 【属性接收】：组件必须能够接收对应的 `props`。
 4. 【时间轴同步（极度重要）】：`props.captions` 数组包含了旁白的精确时间戳数据（包含 `text`，`startMs` 和 `endMs`）。你必须将视觉元素（如逐句字幕、动画效果、转场）与这些时间戳完美同步。请使用 `useVideoConfig()` 获取 `fps`，将毫秒转换为帧数（例如 `Math.round(startMs / 1000 * fps)`），并结合 `Sequence` (通过 `from` 和 `durationInFrames` 控制) 以及 `interpolate` 驱动动画！这符合 Remotion 官方推荐的帧控制规范。

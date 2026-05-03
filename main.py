@@ -258,14 +258,15 @@ def process_dynamic_video_pipeline(
     top_k: int = 20,
     speed: float = 5,
     refine_text: bool = True,
-    bgm: str = ""
+    bgm: str = "",
+    aspect_ratio: str = "9:16"
 ):
     """Background task for LLM Dynamic Template Video generation."""
     task_manager = TaskManager(task_id=task_id)
     try:
         from video.llm_provider import get_llm_provider
         from video.remotion_generator import RemotionGenerator
-        provider = get_llm_provider("mimo")
+        provider = get_llm_provider()
 
         task_manager.update_status(0.05, "正在构思视频文案与风格...", "processing", task_type="dynamic_video")
         
@@ -276,10 +277,11 @@ def process_dynamic_video_pipeline(
 
         messages = [
             {"role": "system", "content": system_msg.strip()},
-            {"role": "user", "content": prompt}
+            {"role": "user", "content": f"视频比例：{aspect_ratio}\n用户需求：{prompt}"}
         ]
         
-        llm_resp = provider.generate(messages)
+        task_log_dir = str(task_manager.get_dir("llm_logs"))
+        llm_resp = provider.generate(messages, log_dir=task_log_dir)
         
         # Parse JSON
         import re, json
@@ -287,7 +289,12 @@ def process_dynamic_video_pipeline(
         if not match:
             raise ValueError(f"Failed to parse JSON from LLM: {llm_resp}")
             
-        data = json.loads(match.group(0))
+        try:
+            data = json.loads(match.group(0), strict=False)
+        except json.JSONDecodeError:
+            # Fallback: try to escape backslashes and see if that helps, or just take the raw string and clean it
+            cleaned_json = match.group(0).replace('\n', '\\n').replace('\r', '\\r')
+            data = json.loads(cleaned_json, strict=False)
         voiceover_text = data.get("voiceover", "").strip()
         visual_style = data.get("visual_style", "").strip()
         
@@ -360,7 +367,9 @@ def process_dynamic_video_pipeline(
             props=props,
             output_path=str(video_output),
             duration_frames=duration_frames,
-            max_retries=3
+            log_dir=task_log_dir,
+            max_retries=3,
+            aspect_ratio=aspect_ratio
         )
         
         task_manager.update_status(1.0, "合成成功！", "completed")
@@ -1170,7 +1179,8 @@ async def generate_dynamic_video(
     top_k: int = Form(20),
     speed: float = Form(1.0),
     refine_text: bool = Form(True),
-    bgm: str = Form("")
+    bgm: str = Form(""),
+    aspect_ratio: str = Form("9:16")
 ):
     """Endpoint for LLM Dynamic Template Video generation."""
     task_manager = TaskManager()

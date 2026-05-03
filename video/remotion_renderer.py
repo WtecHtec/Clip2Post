@@ -12,27 +12,30 @@ class RemotionRenderer:
         self.ensure_symlink()
 
     def ensure_symlink(self):
-        """Ensure a symlink exists from public/tasks to the root tasks directory."""
+        """Ensure a relative symlink exists from public/tasks to the root tasks directory."""
         public_dir = self.remotion_dir / "public"
         public_dir.mkdir(parents=True, exist_ok=True)
+        
+        # 1. Tasks symlink
         tasks_symlink = public_dir / "tasks"
-        # Check if it exists or is a broken symlink
         if not tasks_symlink.exists() and not tasks_symlink.is_symlink():
             try:
-                os.symlink(TASKS_DIR.absolute(), tasks_symlink)
-                print(f"      Created symlink: {tasks_symlink} -> {TASKS_DIR.absolute()}")
+                # Create a relative symlink: public/tasks -> ../../../tasks
+                # From skills/remotion/public to tasks
+                os.symlink("../../../tasks", tasks_symlink)
+                print(f"      Created relative symlink: {tasks_symlink} -> ../../../tasks")
             except Exception as e:
-                print(f"      Warning: Failed to create symlink: {e}")
+                print(f"      Warning: Failed to create tasks symlink: {e}")
 
-        bgm_dir = Path("bgm").absolute()
-        if bgm_dir.exists():
-            bgm_symlink = public_dir / "bgm"
-            if not bgm_symlink.exists() and not bgm_symlink.is_symlink():
-                try:
-                    os.symlink(bgm_dir, bgm_symlink)
-                    print(f"      Created BGM symlink: {bgm_symlink} -> {bgm_dir}")
-                except Exception as e:
-                    print(f"      Warning: Failed to create BGM symlink: {e}")
+        # 2. BGM symlink
+        bgm_symlink = public_dir / "bgm"
+        if not bgm_symlink.exists() and not bgm_symlink.is_symlink():
+            try:
+                # Create a relative symlink: public/bgm -> ../../../bgm
+                os.symlink("../../../bgm", bgm_symlink)
+                print(f"      Created relative BGM symlink: {bgm_symlink} -> ../../../bgm")
+            except Exception as e:
+                print(f"      Warning: Failed to create BGM symlink: {e}")
 
     def render(self, props_path, output_path, duration_frames=300, composition_id="MyScene", entry_file="src/index.ts"):
         """

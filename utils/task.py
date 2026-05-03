@@ -25,7 +25,7 @@ class TaskManager:
 
     def _ensure_directories(self):
         """Create necessary subdirectories for the task."""
-        subdirs = ["video", "audio", "subtitle", "ai", "images", "article"]
+        subdirs = ["video", "audio", "subtitle", "ai", "images", "article", "llm_logs"]
         for subdir in subdirs:
             (self.task_dir / subdir).mkdir(parents=True, exist_ok=True)
             

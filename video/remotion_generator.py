@@ -3,6 +3,7 @@ import re
 import uuid
 import json
 import time
+from typing import Optional
 from pathlib import Path
 from .llm_provider import LLMProvider, get_llm_provider
 from .remotion_renderer import RemotionRenderer
@@ -15,15 +16,25 @@ class RemotionGenerator:
         self.dynamic_dir.mkdir(parents=True, exist_ok=True)
 
     def extract_code(self, response: str) -> str:
-        """Extracts the TSX code block from the LLM response."""
-        pattern = r"```(?:tsx|typescript|ts|javascript|js)?\s*\n(.*?)\n```"
+        """Extracts the TSX code block from the LLM response, even if truncated."""
+        # Pattern to handle potentially truncated closing backticks
+        pattern = r"```(?:tsx|typescript|ts|javascript|js)?\s*\n(.*?)(?:\n```|$)"
         match = re.search(pattern, response, re.DOTALL)
         if match:
-            return match.group(1).strip()
-        # Fallback: assume the whole response is code if no markdown block is found
-        return response.strip()
+            content = match.group(1).strip()
+            # If the content itself still ends with ```, strip it (unlikely but safe)
+            return content.rstrip("`").strip()
+        
+        # Fallback: manually strip leading markdown if it exists
+        clean_response = response.strip()
+        if clean_response.startswith("```"):
+            lines = clean_response.splitlines()
+            if len(lines) > 1:
+                return "\n".join(lines[1:]).strip().rstrip("`").strip()
+        
+        return clean_response.rstrip("`").strip()
 
-    def generate_and_render(self, user_intent: str, props: dict, output_path: str, duration_frames: int = 300, max_retries: int = 3) -> str:
+    def generate_and_render(self, user_intent: str, props: dict, output_path: str, duration_frames: int = 300, max_retries: int = 3, log_dir: Optional[str] = None, aspect_ratio: str = "9:16") -> str:
         """
         Generates a dynamic Remotion component based on user intent, and attempts to render it.
         Includes a retry mechanism for syntax or rendering errors.
@@ -31,6 +42,12 @@ class RemotionGenerator:
         prompt_path = Path(__file__).parent / "prompts" / "remotion_developer.txt"
         with open(prompt_path, "r", encoding="utf-8") as f:
             system_prompt = f.read()
+        
+        # Adjust prompt based on aspect ratio
+        width, height = (1080, 1920) if aspect_ratio == "9:16" else (1920, 1080)
+        system_prompt = system_prompt.replace("9:16 (1080x1920)", f"{aspect_ratio} ({width}x{height})")
+        system_prompt = system_prompt.replace("9:16", aspect_ratio)
+        system_prompt += f"\n\nCRITICAL: The video aspect ratio is {aspect_ratio} ({width}x{height}). Ensure all layouts and typography are optimized for this specific ratio."
         
         user_prompt = f"""
 User Intent: {user_intent}
@@ -66,7 +83,7 @@ Please generate the Remotion component that visualizes this intent using the pro
             print(f"      [Attempt {attempt + 1}/{max_retries}] Requesting code from LLM...")
             
             try:
-                response = self.llm_provider.generate(messages)
+                response = self.llm_provider.generate(messages, log_dir=log_dir, max_completion_tokens=16384)
             except Exception as e:
                 print(f"      LLM Generation failed: {e}")
                 time.sleep(2)
@@ -100,8 +117,8 @@ export const RemotionRoot = () => {{
             component={{WrapperComponent}}
             durationInFrames={{{duration_frames}}}
             fps={{30}}
-            width={{1080}}
-            height={{1920}}
+            width={{{width}}}
+            height={{{height}}}
         />
     );
 }};
