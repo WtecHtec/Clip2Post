@@ -11,9 +11,76 @@
    - 【严禁使用】：绝对不要从 `@remotion/react` 导入任何内容（该包不存在）。不要混淆 `react` 和 `remotion` 的导出内容。
 2. 【禁止外部依赖】：绝对不要引入任何外部的 CSS 文件或其他自定义组件，请全部使用内联样式（Inline Styles）来实现 UI。
 3. 【属性接收】：组件必须能够接收对应的 `props`。
-4. 【时间轴同步（极度重要）】：`props.captions` 数组包含了旁白的精确时间戳数据（包含 `text`，`startMs` 和 `endMs`）。你必须将视觉元素（如逐句字幕、动画效果、转场）与这些时间戳完美同步。请使用 `useVideoConfig()` 获取 `fps`，将毫秒转换为帧数（例如 `Math.round(startMs / 1000 * fps)`），并结合 `Sequence` (通过 `from` 和 `durationInFrames` 控制) 以及 `interpolate` 驱动动画！这符合 Remotion 官方推荐的帧控制规范。
-5. 【组件导出】：请将主组件作为默认导出（例如：`export default function MyScene(props: any) { ... }`）。
-6. 【纯代码输出】：仅输出一段包含 TSX 代码的 Markdown 代码块（```tsx ... ```），不要包含任何额外的解释说明或聊天废话。
+4. 【时间轴同步（极度重要，必须严格执行）】：`props.captions` 数组中的每条字幕都带有精确时间戳（`text`, `startMs`, `endMs`）。**内容元素与字幕必须绑定在同一个 `<Sequence>` 内，这是保证同步的唯一可靠方法**。
+
+   **强制使用以下架构**（代码必须包含完整内联实现，不得引用未定义的组件）：
+   ```tsx
+   export default function MyScene(props: any) {
+     const { fps, durationInFrames } = useVideoConfig();
+     const frame = useCurrentFrame();
+     const msToFrame = (ms: number) => Math.round((ms ?? 0) / 1000 * fps);
+
+     return (
+       <AbsoluteFill style={{ overflow: 'hidden', background: '#0a0a0a' }}>
+         {/* ── 层1：持久背景（贯穿全程，内联实现，不要抽出为单独组件） ── */}
+         <AbsoluteFill style={{ /* 渐变/粒子/几何背景的内联样式 */ }} />
+
+         {/* ── 层2：字幕驱动的内容 + 字幕，必须同住一个 Sequence ── */}
+         {props.captions.map((c: any, i: number) => {
+           const from = msToFrame(c.startMs);
+           const dur = Math.max(1, msToFrame(c.endMs) - from);
+           return (
+             <Sequence key={i} from={from} durationInFrames={dur}>
+               {/* Sequence 内 frame 从 0 开始，直接用于进场动效 */}
+               <InnerScene caption={c} index={i} total={props.captions.length} />
+             </Sequence>
+           );
+         })}
+       </AbsoluteFill>
+     );
+   }
+
+   // InnerScene 必须完整内联实现（不能是外部引用），同时包含内容元素和字幕
+   function InnerScene({ caption, index, total }: any) {
+     const frame = useCurrentFrame(); // 此处 frame 从 0 开始（Sequence 局部帧）
+     const { fps } = useVideoConfig();
+     const enter = interpolate(frame, [0, 8], [0, 1], { extrapolateRight: 'clamp' });
+
+     return (
+       <AbsoluteFill style={{ overflow: 'hidden' }}>
+         {/* ① 该句对应的内容元素：关键词、图标、动效等 */}
+         <div style={{ opacity: enter, /* ... 内容样式 */ }}>
+           {/* 根据 caption.text 提取关键词展示 */}
+         </div>
+
+         {/* ② 字幕：必须在 Sequence 内，与内容严格同步 */}
+         <div style={{
+           position: 'absolute', bottom: 80, left: 80, right: 80,
+           opacity: enter, color: '#fff', fontSize: 36, textAlign: 'center',
+           textShadow: '0 2px 12px rgba(0,0,0,0.8)', lineHeight: 1.5
+         }}>
+           {caption.text}
+         </div>
+       </AbsoluteFill>
+     );
+   }
+   ```
+
+   **架构规则**（违反任何一条均会导致时间轴错乱或内容不显示）：
+   - **`InnerScene` 必须完整内联定义在同一文件**：不能引用文件外部未定义的组件。
+   - **内容与字幕必须同住一个 `<Sequence>`（通过 `InnerScene` 或直接内联）**：禁止将字幕提到 `Sequence` 外面单独渲染。
+   - **`<Sequence>` 内部 `useCurrentFrame()` 返回从 0 开始的局部帧**：进场动效直接用 `interpolate(frame, [0, N], ...)`，无需减去 `from`。
+   - **严禁硬编码帧数**：所有区间必须来自 `props.captions` 的 `startMs/endMs`。
+5. 【组件导出与命名规范（严禁重复定义）】：
+   - **主组件命名**：主组件必须命名为 `DynamicScene` 并作为默认导出。
+   - **禁止重复声明（违者必错）**：在一个文件中，任何常量（如 `COLORS`）、组件（如 `StarCounter`）或类型声明**绝对只能出现一次**。
+   - **强制定义位置**：
+     1. 文件顶部：Imports
+     2. 文件中部：`DynamicScene` 主组件
+     3. **文件底部**：所有辅助组件（如 `InnerScene`、`FeatureCard` 等）和常量。
+   - **严禁重复输出代码**：如果一个组件（如 `StarCounter`）已经在文件底部定义过，严禁在其他地方再次定义它。
+   - **命名唯一性**：如果你需要定义多个类似的组件，请确保名称唯一（如 `FeatureCard1`, `FeatureCard2`），但更好的做法是定义一个通用的 `FeatureCard` 并通过 props 传参。
+   - **纯代码输出**：仅输出 TSX 代码块。
 7. 【极致的美学与视觉张力（极度重要）】：拒绝平庸呆板的 PPT 式画面！你必须运用现代 Web UI/运动图形（Motion Graphics）的设计理念，实现令人惊艳的视觉张力：
    - 动态排版 (Kinetic Typography)：使用夸张的超大字体、极强的粗细对比、错落的网格排版，善用渐变文字色和遮罩。
    - 张力动效 (Tension Motion)：所有元素的进出场必须使用 `spring` 动画，赋予元素生动的物理弹性（调节 `damping`, `stiffness`）。可以叠加使用缩放 (scale)、3D旋转 (rotateX/Y)、弹性抖动。绝对不要只用死板的线性移动。
@@ -24,11 +91,13 @@
      - **渐变光晕**：多层 `radial-gradient` 或 `linear-gradient` 叠加，颜色随时间用 `interpolate` 缓慢切换。
      - **关键词弹出动画**：从 `props.captions` 中提取关键词，用 `spring` 动画在画面的不同区域弹出并消散，形成动态文字墙效果。
      - **几何形状层**：使用绝对定位的圆形、矩形、三角形（SVG 或 div），用 `spring` 或 `interpolate` 驱动其位移、旋转、缩放。
-8. 【{{ASPECT_RATIO}} 视频美学与字幕安全（强制要求）】：
+8. 【{{ASPECT_RATIO}} 视频美学、边界安全与字幕安全（强制要求）】：
    - 视频尺寸固定为 **{{WIDTH}}x{{HEIGHT}} ({{ORIENTATION}})**。你必须按照该比例思维进行排版，避免元素过于拥挤或过于分散。
-   - 字幕安全区域：所有文字必须显示在屏幕内，严禁超出边界。
-   - 推荐布局：{{SUBTITLE_PLACEMENT}}，并保持左右至少 80px 的 Padding。
-   - 适配性：对于长句子，必须实现自动换行（如使用 `flex-wrap` 或限制 `width`）或动态缩小字号，确保在屏幕上完整呈现。
+   - **根容器必须设置裁剪**：组件最外层的容器必须设置 `overflow: 'hidden'`，防止任何子元素渲染到视频画面以外。
+   - **所有绝对定位元素必须在画布范围内**：使用 `position: 'absolute'` 的元素，其 `top`、`left`、`right`、`bottom` 值必须确保元素完整显示在 `0 ~ {{WIDTH}}px`（横）、`0 ~ {{HEIGHT}}px`（纵）范围内。对于动画元素，要检查动画过程中的最大/最小位移是否也在范围内。
+   - **字幕安全区域**：所有文字必须显示在屏幕内，严禁超出边界。保持左右至少 `80px` 的内边距，文字容器宽度不超过 `{{WIDTH}} - 160px`。
+   - 推荐布局：{{SUBTITLE_PLACEMENT}}。
+   - 适配性：对于长句子，必须实现自动换行（如使用 `flexWrap: 'wrap'` 或限制 `maxWidth`）或动态缩小字号，确保在屏幕上完整呈现。
 9. 【字幕渲染（必须执行）】：你必须遍历 `props.captions` 数组，为每一句旁白渲染对应的文本组件。可以使用 `captions.map` 结合 `Sequence` 或者根据当前帧动态计算显示哪条字幕。字幕必须清晰可见（使用对比度强的颜色或文字阴影/背景）。建议为字幕添加简单的进场动效（如：从底部滑入、透明度淡入）。
 10. 【Remotion API 正确用法（避免常见错误）】：
    - **`useVideoConfig()` 的位置**：必须在组件函数体顶层调用（不能在条件语句或嵌套函数里），并解构出 `fps`：`const { fps, durationInFrames } = useVideoConfig();`
@@ -37,4 +106,4 @@
    - **`interpolate()` 的 `inputRange` 必须严格单调递增且全为有效数字**：
      - **单调递增**：`inputRange` 数组中的每个值必须严格大于前一个值，不能相等也不能倒序（如 `[0,12,-11,1]` 中 `-11 < 12` 就会崩溃）。常见触发原因：帧数计算顺序错误，或字幕 `startMs/endMs` 直接用了原始值而未排序。
      - **必须全为数字**：`inputRange` 中绝对不能出现 `NaN`、`undefined`、`null` 或字符串，否则报错 `inputRange must contain only numbers`。常见触发原因：`fps` 或 `startMs/endMs` 为 `undefined` 时直接参与计算（`undefined * 30 = NaN`）。正确做法：在计算前先校验所有输入值，例如：`const start = Math.round((c.startMs ?? 0) / 1000 * fps); const end = Math.max(start + 1, Math.round((c.endMs ?? 0) / 1000 * fps));`，并确保 `fps` 已从 `useVideoConfig()` 中正确获取。
-   - **严禁使用浏览器原生 `new Audio()` 构造函数**：在 Remotion 组件中使用 `new Audio(src)` 会导致运行时错误 `TypeError: Failed to construct 'Audio': Please use the 'new' operator`。播放音频必须使用 Remotion 提供的 `<Audio>` 组件：`import { Audio, staticFile } from 'remotion'; ... <Audio src={staticFile('path/to/audio.wav')} />`。
+   - **DynamicScene 组件内严禁渲染任何音频**：TTS 旁白音频和背景音乐（BGM）已由外层 Wrapper 组件统一负责播放，你的组件**绝对不能**再添加任何 `<Audio>` 组件或 `new Audio()` 调用。否则会因为路径解析错误（`staticFile()` 只解析 Remotion 内部服务的资源，而非 FastAPI 的音频文件）导致 404 报错，且会与 Wrapper 中的音频产生冲突。你的 DynamicScene 组件只负责视觉渲染，不处理任何音频。

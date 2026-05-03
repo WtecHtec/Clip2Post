@@ -129,8 +129,12 @@ Please generate the Remotion component that visualizes this intent using the pro
 
         renderer = RemotionRenderer(self.remotion_dir)
         
-        # Write the props file
-        props_path = self.remotion_dir / f"public/{scene_id}_props.json"
+        # Calculate task directory from output_path (tasks/ID/videos/video.mp4 -> tasks/ID)
+        output_path_obj = Path(output_path).resolve()
+        task_dir = output_path_obj.parent.parent
+        
+        # Write the props file in the task directory
+        props_path = task_dir / f"remotion_props.json"
         with open(props_path, "w", encoding="utf-8") as f:
             json.dump(props, f, ensure_ascii=False)
 
@@ -152,6 +156,41 @@ Please generate the Remotion component that visualizes this intent using the pro
                 current_error = "LLM did not return a valid TSX code block. Please ensure you ONLY output a ```tsx ... ``` code block containing valid TypeScript React code with proper imports and a default export."
                 continue
             
+            # Post-processing: Forcefully strip any Audio components or new Audio() calls 
+            import re
+            code = re.sub(r'<Audio\s+[^>]*/>', '', code)
+            code = re.sub(r'new\s+Audio\(.*?\)', 'null', code)
+            
+            # Truncation logic: Improved to avoid false positives with multiple different imports
+            # We look for a second "export default" or a second "import React" specifically.
+            lines = code.split('\n')
+            if len(lines) > 10:
+                first_line = ""
+                for l in lines:
+                    if l.strip().startswith("import"):
+                        first_line = l.strip()
+                        break
+                
+                if first_line:
+                    # Find if this exact import line appears again much later
+                    first_occurrence = code.find(first_line)
+                    second_occurrence = code.find(first_line, first_occurrence + len(first_line))
+                    if second_occurrence != -1 and second_occurrence > len(code) // 3:
+                        print(f"      Warning: Detected repeated import line. Truncating at {second_occurrence}.")
+                        code = code[:second_occurrence].strip()
+                
+                # Also check for second "export default"
+                export_marker = "export default"
+                first_export = code.find(export_marker)
+                if first_export != -1:
+                    second_export = code.find(export_marker, first_export + len(export_marker))
+                    if second_export != -1:
+                        # Find the end of the previous block (usually the last '}')
+                        last_brace = code.rfind('}', 0, second_export)
+                        if last_brace != -1:
+                            print(f"      Warning: Detected second export default. Truncating at {last_brace + 1}.")
+                            code = code[:last_brace + 1].strip()
+            
             # Write the generated component (only after validation passes)
             with open(scene_path, "w", encoding="utf-8") as f:
                 f.write(code)
@@ -163,10 +202,12 @@ import DynamicComponent from './{scene_filename[:-4]}';
 
 const WrapperComponent = (props: any) => {{
     return (
-        <AbsoluteFill>
+        <AbsoluteFill style={{{{ overflow: 'hidden', width: {width}, height: {height} }}}}>
             {{props.audioUrl && <Audio src={{props.audioUrl}} />}}
             {{props.bgm && <Audio src={{props.bgm.startsWith('http') ? props.bgm : `http://localhost:8000/bgm/${{props.bgm}}`}} volume={{0.15}} />}}
-            <DynamicComponent {{...props}} />
+            <div style={{{{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', overflow: 'hidden' }}}}>
+                <DynamicComponent {{...props}} />
+            </div>
         </AbsoluteFill>
     );
 }};
