@@ -170,8 +170,8 @@ Please generate the Remotion component that visualizes this intent using the pro
 
         current_error = None
 
-        for attempt in range(max_retries):
-            print(f"      [Attempt {attempt + 1}/{max_retries}] Requesting code from LLM...")
+        for attempt in range(max_retries + 1):
+            print(f"      [Attempt {attempt + 1}/{max_retries + 1}] Requesting code from LLM...")
             
             try:
                 response = self.llm_provider.generate(messages, log_dir=log_dir, max_completion_tokens=16384)
