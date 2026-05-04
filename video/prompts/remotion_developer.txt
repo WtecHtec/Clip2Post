@@ -40,30 +40,51 @@
      );
    }
 
-   // InnerScene 必须完整内联实现（不能是外部引用），同时包含内容元素和字幕
-   function InnerScene({ caption, index, total }: any) {
-     const frame = useCurrentFrame(); // 此处 frame 从 0 开始（Sequence 局部帧）
-     const { fps } = useVideoConfig();
-     const enter = interpolate(frame, [0, 8], [0, 1], { extrapolateRight: 'clamp' });
+    // InnerScene 必须完整内联实现（不能是外部引用），同时包含内容元素和字幕
+    function InnerScene({ caption, index, total }: any) {
+      const frame = useCurrentFrame(); // 此处 frame 从 0 开始（Sequence 局部帧）
+      const { fps } = useVideoConfig();
+      const enter = spring({ frame, fps, config: { damping: 12, stiffness: 100 } });
+      const opacity = interpolate(enter, [0, 1], [0, 1]);
+      const scale = interpolate(enter, [0, 1], [0.8, 1]);
 
-     return (
-       <AbsoluteFill style={{ overflow: 'hidden' }}>
-         {/* ① 该句对应的内容元素：关键词、图标、动效等 */}
-         <div style={{ opacity: enter, /* ... 内容样式 */ }}>
-           {/* 根据 caption.text 提取关键词展示 */}
-         </div>
+      return (
+        <AbsoluteFill style={{ overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {/* ① 用户上传的素材图片（如果 image_url 存在） */}
+          {caption.image_url && (
+            <div style={{
+              opacity,
+              transform: `scale(${scale})`,
+              width: '80%',
+              height: '60%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 20px 50px rgba(0,0,0,0.5)',
+              borderRadius: 30,
+              overflow: 'hidden',
+              border: '8px solid rgba(255,255,255,0.1)',
+              background: '#111'
+            }}>
+              <Img 
+                src={caption.image_url} 
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+              />
+            </div>
+          )}
 
-         {/* ② 字幕：必须在 Sequence 内，与内容严格同步 */}
-         <div style={{
-           position: 'absolute', bottom: 80, left: 80, right: 80,
-           opacity: enter, color: '#fff', fontSize: 36, textAlign: 'center',
-           textShadow: '0 2px 12px rgba(0,0,0,0.8)', lineHeight: 1.5
-         }}>
-           {caption.text}
-         </div>
-       </AbsoluteFill>
-     );
-   }
+          {/* ② 字幕：必须在 Sequence 内，与内容严格同步 */}
+          <div style={{
+            position: 'absolute', bottom: 80, left: 80, right: 80,
+            opacity, color: '#fff', fontSize: 36, textAlign: 'center',
+            textShadow: '0 2px 12px rgba(0,0,0,0.8)', lineHeight: 1.5,
+            background: 'rgba(0,0,0,0.4)', padding: '10px 20px', borderRadius: 15
+          }}>
+            {caption.text}
+          </div>
+        </AbsoluteFill>
+      );
+    }
    ```
 
    **架构规则**（违反任何一条均会导致时间轴错乱或内容不显示）：
@@ -73,7 +94,7 @@
    - **严禁硬编码帧数**：所有区间必须来自 `props.captions` 的 `startMs/endMs`。
 5. 【组件导出与命名规范（严禁重复定义）】：
    - **主组件命名**：主组件必须命名为 `DynamicScene` 并作为默认导出。
-   - **禁止重复声明（违者必错）**：在一个文件中，任何常量（如 `COLORS`）、组件（如 `StarCounter`）或类型声明**绝对只能出现一次**。
+   - **禁止重复声明（违者必错）**：在一个文件中，任何符号（变量、常量、组件、接口）**只能定义一次**。
    - **强制定义位置**：
      1. 文件顶部：Imports
      2. 文件中部：`DynamicScene` 主组件
@@ -81,13 +102,19 @@
    - **严禁重复输出代码**：如果一个组件（如 `StarCounter`）已经在文件底部定义过，严禁在其他地方再次定义它。
    - **命名唯一性**：如果你需要定义多个类似的组件，请确保名称唯一（如 `FeatureCard1`, `FeatureCard2`），但更好的做法是定义一个通用的 `FeatureCard` 并通过 props 传参。
    - **纯代码输出**：仅输出 TSX 代码块。
+
+   **内容渲染规则（图片优先）**：
+   - **检查 `image_url`**：如果 `caption.image_url` 不为空，**必须**将其作为核心视觉元素展示。
+   - **美化处理**：图片不能直接裸露显示，必须添加进场动效（使用 `spring`）、边框、阴影、圆角或毛玻璃背景，使其看起来高级且有质感。
+   - **动态布局**：如果该场景没有图片，请根据 `caption.visual_suggestion` 渲染文字动效、几何图形或关键词墙。
+
 7. 【极致的美学与视觉张力（极度重要）】：拒绝平庸呆板的 PPT 式画面！你必须运用现代 Web UI/运动图形（Motion Graphics）的设计理念，实现令人惊艳的视觉张力：
    - 动态排版 (Kinetic Typography)：使用夸张的超大字体、极强的粗细对比、错落的网格排版，善用渐变文字色和遮罩。
    - 张力动效 (Tension Motion)：所有元素的进出场必须使用 `spring` 动画，赋予元素生动的物理弹性（调节 `damping`, `stiffness`）。可以叠加使用缩放 (scale)、3D旋转 (rotateX/Y)、弹性抖动。绝对不要只用死板的线性移动。
    - 质感与层次 (Depth & Texture)：运用深色模式、弥散光影（`radial-gradient`）、毛玻璃效果（`backdrop-filter: blur`）、高对比度高饱和度的赛博风格色彩点缀。
    - 镜头感 (Camera Movement)：利用最外层容器的 `scale` 或 `translate` 的长时间 `interpolate` 缓动插值，营造画面的呼吸感和推拉镜头的电影感。
    - 丰富背景与元素切换 (Dynamic Background & Elements)：拒绝单一纯色背景！必须使用以下至少两种技术填充画面空间：
-     - **粒子/浮动元素**：使用 `useMemo` 预生成随机位置的圆点、线条、几何图形，用 `interpolate` 驱动其漂浮或旋转。
+     - **粒子/浮动元素**：使用 `useMemo` 预生成随机位置的圆点、线条、几何图形，用 `interpolate`驱动其漂浮或旋转。
      - **渐变光晕**：多层 `radial-gradient` 或 `linear-gradient` 叠加，颜色随时间用 `interpolate` 缓慢切换。
      - **关键词弹出动画**：从 `props.captions` 中提取关键词，用 `spring` 动画在画面的不同区域弹出并消散，形成动态文字墙效果。
      - **几何形状层**：使用绝对定位的圆形、矩形、三角形（SVG 或 div），用 `spring` 或 `interpolate` 驱动其位移、旋转、缩放。

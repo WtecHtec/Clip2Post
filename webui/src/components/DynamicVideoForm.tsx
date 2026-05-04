@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Type, Play, MessageSquare, Sparkles } from 'lucide-react';
+import { Type, Play, MessageSquare, Sparkles, Image, Plus, Trash2, Camera } from 'lucide-react';
 import type { DynamicVideoOptions } from '../api';
 
 interface DynamicVideoFormProps {
@@ -35,6 +35,7 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
     const [topK, setTopK] = useState(() => parseInt(localStorage.getItem('dynamic-video-topK') || '20'));
     const [speed, setSpeed] = useState(() => parseFloat(localStorage.getItem('dynamic-video-speed') || '1.0'));
     const [aspectRatio, setAspectRatio] = useState<'9:16' | '16:9'>(() => (localStorage.getItem('dynamic-video-aspectRatio') as '9:16' | '16:9') || '9:16');
+    const [userImages, setUserImages] = useState<{ file: File; description: string }[]>([]);
 
     useEffect(() => {
         localStorage.setItem('dynamic-video-prompt', prompt);
@@ -90,8 +91,33 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
         }
     };
 
+    const handleAddImage = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files) {
+            const newFiles = Array.from(e.target.files).map(file => ({ file, description: '' }));
+            setUserImages([...userImages, ...newFiles]);
+        }
+    };
+
+    const handleRemoveImage = (index: number) => {
+        setUserImages(userImages.filter((_, i) => i !== index));
+    };
+
+    const handleDescriptionChange = (index: number, desc: string) => {
+        const updated = [...userImages];
+        updated[index].description = desc;
+        setUserImages(updated);
+    };
+
     const handleSubmit = () => {
         if (!prompt.trim()) return;
+        
+        // Ensure all descriptions are filled
+        const missingDesc = userImages.some(img => !img.description.trim());
+        if (missingDesc) {
+            alert('请为所有图片填写描述 (Descriptions are mandatory)');
+            return;
+        }
+
         onGenerate({
             prompt,
             ttsEngine,
@@ -102,7 +128,9 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
             speed,
             refine_text: refineText,
             bgm: bgm || undefined,
-            aspectRatio
+            aspectRatio,
+            files: userImages.map(img => img.file),
+            imageDescriptions: JSON.stringify(userImages.map(img => img.description))
         });
     };
 
@@ -160,6 +188,76 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
                         />
                         <span>16:9 (横屏 / Landscape)</span>
                     </label>
+                </div>
+            </div>
+
+            <div style={{ marginBottom: '1.5rem', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                <h4 className="section-title" style={{ marginBottom: '1rem', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Image size={18} /> 🖼️ 素材图片 (Source Images)
+                </h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem' }}>
+                        {userImages.map((img, idx) => (
+                            <div key={idx} style={{ 
+                                position: 'relative', 
+                                background: 'rgba(0,0,0,0.4)', 
+                                borderRadius: '12px', 
+                                padding: '0.75rem',
+                                border: '1px solid rgba(255,255,255,0.1)'
+                            }}>
+                                <div style={{ position: 'relative', width: '100%', aspectRatio: '16/9', borderRadius: '8px', overflow: 'hidden', marginBottom: '0.75rem' }}>
+                                    <img 
+                                        src={URL.createObjectURL(img.file)} 
+                                        alt={`upload-${idx}`} 
+                                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                    />
+                                    <button 
+                                        onClick={() => handleRemoveImage(idx)}
+                                        style={{ 
+                                            position: 'absolute', top: '5px', right: '5px', 
+                                            background: 'rgba(239, 68, 68, 0.8)', color: 'white', 
+                                            border: 'none', borderRadius: '50%', padding: '5px',
+                                            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                        }}
+                                    >
+                                        <Trash2 size={14} />
+                                    </button>
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                    <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>图片描述 (必填):</label>
+                                    <textarea
+                                        value={img.description}
+                                        onChange={(e) => handleDescriptionChange(idx, e.target.value)}
+                                        placeholder="例如：这是产品的正面特写，展示了精致的金属拉丝纹理"
+                                        style={{ 
+                                            width: '100%', minHeight: '60px', padding: '0.5rem', 
+                                            borderRadius: '6px', background: 'rgba(0,0,0,0.3)', 
+                                            color: 'white', border: '1px solid rgba(255,255,255,0.1)',
+                                            fontSize: '0.85rem', outline: 'none', resize: 'none'
+                                        }}
+                                    />
+                                </div>
+                            </div>
+                        ))}
+                        <label style={{ 
+                            border: '2px dashed rgba(255,255,255,0.1)', 
+                            borderRadius: '12px', 
+                            display: 'flex', flexDirection: 'column', 
+                            alignItems: 'center', justifyContent: 'center', 
+                            cursor: 'pointer', gap: '0.5rem',
+                            minHeight: '150px',
+                            transition: 'all 0.2s ease'
+                        }} className="upload-box-hover">
+                            <input type="file" multiple accept="image/*" onChange={handleAddImage} style={{ display: 'none' }} />
+                            <Plus size={32} color="var(--text-secondary)" />
+                            <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>添加图片</span>
+                        </label>
+                    </div>
+                    {userImages.length > 0 && (
+                        <p style={{ fontSize: '0.8rem', color: 'var(--accent-primary)', marginTop: '0.5rem' }}>
+                            💡 提示：详细的描述能帮助 LLM 更好地决定图片的展示时机。
+                        </p>
+                    )}
                 </div>
             </div>
 

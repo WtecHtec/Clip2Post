@@ -369,6 +369,8 @@ export interface DynamicVideoOptions {
   refine_text?: boolean;
   bgm?: string;
   aspectRatio?: '9:16' | '16:9';
+  files?: File[];
+  imageDescriptions?: string;
 }
 
 export const generateDynamicVideo = async (options: DynamicVideoOptions): Promise<string> => {
@@ -383,6 +385,15 @@ export const generateDynamicVideo = async (options: DynamicVideoOptions): Promis
   if (options.refine_text !== undefined) formData.append('refine_text', String(options.refine_text));
   if (options.bgm) formData.append('bgm', options.bgm);
   if (options.aspectRatio) formData.append('aspect_ratio', options.aspectRatio);
+
+  if (options.files) {
+    options.files.forEach((file) => {
+      formData.append('files', file);
+    });
+  }
+  if (options.imageDescriptions) {
+    formData.append('image_descriptions', options.imageDescriptions);
+  }
 
   const response = await fetch(`${API_BASE_URL}/dynamic_video`, {
     method: 'POST',
