@@ -394,13 +394,22 @@ def process_dynamic_video_pipeline(
         current_scene_idx = 0
         current_scene_text_accum = ""
         
+        # Whitelist of valid image URLs
+        valid_image_urls = {img['url'] for img in (user_images or [])}
+        
         for c in captions:
             if "text" in c:
                 c["text"] = re.sub(r'\[.*?\]\s*', '', c["text"]).strip()
                 # Attach image_url if this caption belongs to a scene that has one
-                # We check if the current caption's text is part of the current scene's text
                 scene = scenes[current_scene_idx] if current_scene_idx < len(scenes) else scenes[-1]
-                c["image_url"] = scene.get("image_url", "")
+                
+                img_url = scene.get("image_url", "")
+                # SAFETY CHECK: Only allow URLs that were actually provided to the LLM
+                if img_url and img_url not in valid_image_urls:
+                    print(f"      [Warning] Filtering hallucinated image_url: {img_url}")
+                    img_url = ""
+                
+                c["image_url"] = img_url
                 c["visual_suggestion"] = scene.get("visual", "")
                 
                 # If this caption's text starts to look like the NEXT scene's text, we might want to advance
