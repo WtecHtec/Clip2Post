@@ -371,6 +371,7 @@ export interface DynamicVideoOptions {
   aspectRatio?: '9:16' | '16:9';
   files?: File[];
   imageDescriptions?: string;
+  maxRetries?: number;
 }
 
 export const generateDynamicVideo = async (options: DynamicVideoOptions): Promise<string> => {
@@ -393,6 +394,9 @@ export const generateDynamicVideo = async (options: DynamicVideoOptions): Promis
   }
   if (options.imageDescriptions) {
     formData.append('image_descriptions', options.imageDescriptions);
+  }
+  if (options.maxRetries !== undefined) {
+    formData.append('max_retries', String(options.maxRetries));
   }
 
   const response = await fetch(`${API_BASE_URL}/dynamic_video`, {

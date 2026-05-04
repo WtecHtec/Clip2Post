@@ -1,6 +1,7 @@
 import os
 import shutil
 import asyncio
+import json
 from pathlib import Path
 from typing import List
 from fastapi import FastAPI, UploadFile, File, BackgroundTasks, Form
@@ -265,7 +266,8 @@ def process_dynamic_video_pipeline(
     refine_text: bool = True,
     bgm: str = "",
     aspect_ratio: str = "9:16",
-    user_images: List[dict] = None  # [{"url": "...", "description": "..."}]
+    user_images: List[dict] = None,  # [{"url": "...", "description": "..."}]
+    max_retries: int = 1
 ):
     """Background task for LLM Dynamic Template Video generation."""
     task_manager = TaskManager(task_id=task_id)
@@ -287,6 +289,12 @@ def process_dynamic_video_pipeline(
             for idx, img in enumerate(user_images):
                 user_content += f"- 图片{idx+1}: {img['description']} (引用地址: {img['url']})\n"
             user_content += "\n请在脚本的 scene 元素中增加一个 image_url 字段（如果该场景适合展示某张用户图片）。"
+
+        # NEW: Save Director prompt context
+        user_prompt_dir = task_manager.get_dir("user_prompt")
+        user_prompt_dir.mkdir(parents=True, exist_ok=True)
+        with open(user_prompt_dir / "director_context.txt", "w", encoding="utf-8") as f:
+            f.write(user_content)
 
         messages = [
             {"role": "system", "content": system_msg.strip()},
@@ -442,11 +450,19 @@ def process_dynamic_video_pipeline(
         
         # Combine user prompt, visual style and scene suggestions for the component generator
         scene_guidelines = "\n".join([f"Scene {i+1}: {s.get('visual')}" for i, s in enumerate(scenes)])
-        combined_intent = f"User Request: {prompt}\n\nVisual Style Directives:\n{visual_style}\n\nScene Guidelines:\n{scene_guidelines}"
+        
+        # Include actual subtitles and timings for the LLM to refer to
+        subtitles_json = json.dumps(captions, ensure_ascii=False, indent=2)
+        
+        combined_intent = f"User Request: {prompt}\n\nVisual Style Directives:\n{visual_style}\n\nScene Guidelines:\n{scene_guidelines}\n\nFinal Subtitles & Timings:\n{subtitles_json}"
         
         # If user images were provided, explicitly mention they are in the captions image_url field
         if user_images:
             combined_intent += "\n\nIMPORTANT: User images are provided in the 'image_url' field of each caption in props. Please render them when image_url is not empty."
+
+        # NEW: Save Developer prompt context
+        with open(user_prompt_dir / "developer_context.txt", "w", encoding="utf-8") as f:
+            f.write(combined_intent)
 
         generator.generate_and_render(
             user_intent=combined_intent,
@@ -454,7 +470,7 @@ def process_dynamic_video_pipeline(
             output_path=str(video_output),
             duration_frames=duration_frames,
             log_dir=task_log_dir,
-            max_retries=3,
+            max_retries=max_retries,
             aspect_ratio=aspect_ratio
         )
         
@@ -1268,7 +1284,8 @@ async def generate_dynamic_video(
     bgm: str = Form(""),
     aspect_ratio: str = Form("9:16"),
     files: List[UploadFile] = File(None),
-    image_descriptions: str = Form("[]")  # JSON string: ["desc1", "desc2"]
+    image_descriptions: str = Form("[]"),  # JSON string: ["desc1", "desc2"]
+    max_retries: int = Form(1)
 ):
     """Endpoint for LLM Dynamic Template Video generation."""
     task_manager = TaskManager()
@@ -1277,9 +1294,12 @@ async def generate_dynamic_video(
     
     # Process uploaded images
     user_images = []
+    
+    # Create task directory
+    task_dir = task_manager.get_dir("")
+    task_dir.mkdir(parents=True, exist_ok=True)
+    
     if files:
-        # Create images directory in task folder
-        task_dir = task_manager.get_dir("")
         images_dir = task_dir / "images"
         images_dir.mkdir(parents=True, exist_ok=True)
         
@@ -1300,6 +1320,29 @@ async def generate_dynamic_video(
             desc = descriptions[i] if i < len(descriptions) else ""
             user_images.append({"url": img_url, "description": desc})
 
+    # NEW: Create user_prompt folder and save input meta (including processed images)
+    user_prompt_dir = task_dir / "user_prompt"
+    user_prompt_dir.mkdir(parents=True, exist_ok=True)
+    
+    meta_path = user_prompt_dir / "meta.json"
+    with open(meta_path, "w", encoding="utf-8") as f:
+        json.dump({
+            "prompt": prompt,
+            "tts_engine": tts_engine,
+            "voice": voice,
+            "bgm": bgm,
+            "aspect_ratio": aspect_ratio,
+            "image_descriptions": image_descriptions,
+            "user_images": user_images, # Save the URLs for CLI tool
+            "timestamp": task_id,
+            "temperature": temperature,
+            "top_p": top_p,
+            "top_k": top_k,
+            "speed": speed,
+            "refine_text": refine_text,
+            "max_retries": max_retries
+        }, f, ensure_ascii=False, indent=2)
+
     background_tasks.add_task(
         process_dynamic_video_pipeline,
         task_id=task_id,
@@ -1313,7 +1356,8 @@ async def generate_dynamic_video(
         refine_text=refine_text,
         bgm=bgm,
         aspect_ratio=aspect_ratio,
-        user_images=user_images
+        user_images=user_images,
+        max_retries=max_retries
     )
     
     return {"task_id": task_id, "message": "Dynamic Video Task started."}

@@ -121,6 +121,9 @@ class RemotionGenerator:
         user_prompt = f"""
 User Intent: {user_intent}
 
+TTS Subtitles & Timings (Use these for Sequence timing):
+{json.dumps(props.get('captions', []), ensure_ascii=False, indent=2)}
+
 Available Props (JSON):
 {json.dumps(props, ensure_ascii=False, indent=2)}
 
@@ -138,6 +141,21 @@ Please generate the Remotion component that visualizes this intent using the pro
 
         scene_path = self.dynamic_dir / scene_filename
         index_path = self.dynamic_dir / index_filename
+
+        # NEW: Save TSX path to meta.json if it exists
+        # Calculate task directory from output_path (tasks/ID/videos/video.mp4 -> tasks/ID)
+        output_path_obj = Path(output_path).resolve()
+        task_dir_abs = output_path_obj.parent.parent
+        meta_path = task_dir_abs / "user_prompt" / "meta.json"
+        if meta_path.exists():
+            try:
+                with open(meta_path, "r", encoding="utf-8") as f:
+                    meta_data = json.load(f)
+                meta_data["dynamic_tsx_path"] = str(scene_path)
+                with open(meta_path, "w", encoding="utf-8") as f:
+                    json.dump(meta_data, f, ensure_ascii=False, indent=2)
+            except Exception as e:
+                print(f"      [Warning] Failed to update meta.json with TSX path: {e}")
 
         renderer = RemotionRenderer(self.remotion_dir)
         

@@ -34,6 +34,7 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
     const [topP, setTopP] = useState(() => parseFloat(localStorage.getItem('dynamic-video-topP') || '0.7'));
     const [topK, setTopK] = useState(() => parseInt(localStorage.getItem('dynamic-video-topK') || '20'));
     const [speed, setSpeed] = useState(() => parseFloat(localStorage.getItem('dynamic-video-speed') || '1.0'));
+    const [maxRetries, setMaxRetries] = useState(() => parseInt(localStorage.getItem('dynamic-video-maxRetries') || '1'));
     const [aspectRatio, setAspectRatio] = useState<'9:16' | '16:9'>(() => (localStorage.getItem('dynamic-video-aspectRatio') as '9:16' | '16:9') || '9:16');
     const [userImages, setUserImages] = useState<{ file: File; description: string }[]>([]);
 
@@ -48,8 +49,9 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
         localStorage.setItem('dynamic-video-topP', topP.toString());
         localStorage.setItem('dynamic-video-topK', topK.toString());
         localStorage.setItem('dynamic-video-speed', speed.toString());
+        localStorage.setItem('dynamic-video-maxRetries', maxRetries.toString());
         localStorage.setItem('dynamic-video-aspectRatio', aspectRatio);
-    }, [prompt, ttsEngine, voice, preset, refineText, bgm, temperature, topP, topK, speed, aspectRatio]);
+    }, [prompt, ttsEngine, voice, preset, refineText, bgm, temperature, topP, topK, speed, maxRetries, aspectRatio]);
 
     useEffect(() => {
         import('../api').then(mod => mod.getBgms().then(setBgmList));
@@ -127,10 +129,11 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
             top_k: topK,
             speed,
             refine_text: refineText,
-            bgm: bgm || undefined,
+            bgm: bgm !== 'none' ? bgm : undefined,
             aspectRatio,
             files: userImages.map(img => img.file),
-            imageDescriptions: JSON.stringify(userImages.map(img => img.description))
+            imageDescriptions: JSON.stringify(userImages.map(img => img.description)),
+            maxRetries
         });
     };
 
@@ -514,6 +517,25 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
                             {ttsEngine === 'omnivoice' && (
                                 <p style={{ margin: 0 }}>💡 <b>OmniVoice:</b> 输入声音风格，中文如 <i>女，低音调</i>（全角逗号分隔），英文如 <i>female, low pitch</i>。</p>
                             )}
+                        </div>
+                        <div className="form-group" style={{ marginTop: '1rem' }}>
+                            <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '0.5rem' }}>最大重试次数 (LLM 纠错)</label>
+                            <input
+                                type="number"
+                                min="0"
+                                max="5"
+                                value={maxRetries}
+                                onChange={(e) => setMaxRetries(parseInt(e.target.value))}
+                                style={{
+                                    width: '100%',
+                                    padding: '0.8rem',
+                                    borderRadius: '8px',
+                                    border: '1px solid var(--border-color)',
+                                    background: 'var(--bg-secondary)',
+                                    color: 'var(--text-primary)',
+                                    outline: 'none'
+                                }}
+                            />
                         </div>
                     </div>
                 </div>
