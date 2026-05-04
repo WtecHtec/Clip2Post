@@ -116,14 +116,58 @@ class MinimaxProvider(LLMProvider):
             print(f"Error during Minimax API call: {e}")
             raise e
 
+class DirectProvider(LLMProvider):
+    """A provider that directly uses LLM_API_KEY, LLM_BASE_URL, and LLM_MODEL from environment."""
+    def __init__(self, api_key: Optional[str] = None, base_url: Optional[str] = None, model: Optional[str] = None):
+        self.api_key = api_key or os.environ.get("LLM_API_KEY")
+        self.base_url = base_url or os.environ.get("LLM_BASE_URL")
+        self.model = model or os.environ.get("LLM_MODEL", "gpt-4o")
+        
+        if not self.api_key:
+            raise ValueError("LLM_API_KEY environment variable is not set for Direct mode.")
+        if not self.base_url:
+            raise ValueError("LLM_BASE_URL environment variable is not set for Direct mode.")
+        
+        self.client = OpenAI(
+            api_key=self.api_key,
+            base_url=self.base_url
+        )
+
+    def generate(self, messages: List[Dict[str, str]], log_dir: Optional[str] = None, **kwargs) -> str:
+        request_args = {
+            "model": self.model,
+            "messages": messages,
+            "max_completion_tokens": kwargs.get("max_completion_tokens", 16384),
+            "temperature": kwargs.get("temperature", 0.7),
+            "top_p": kwargs.get("top_p", 0.95),
+            "stream": False,
+        }
+        
+        # Override with any explicit kwargs provided
+        for k, v in kwargs.items():
+            if k not in ["log_dir"]: # Avoid passing internal args to OpenAI
+                request_args[k] = v
+
+        try:
+            completion = self.client.chat.completions.create(**request_args)
+            content = completion.choices[0].message.content
+            self._log_interaction(request_args, content, log_dir)
+            return content
+        except Exception as e:
+            print(f"Error during Direct LLM API call: {e}")
+            raise e
+
 # Factory or simple registry for providers can be added here if needed
 def get_llm_provider(provider_name: Optional[str] = None, **kwargs) -> LLMProvider:
     if provider_name is None:
         provider_name = os.environ.get("LLM_VENDOR", "mimo")
     
-    if provider_name.lower() == "mimo":
+    name = provider_name.lower()
+    if name == "mimo":
         return MiMoProvider(**kwargs)
-    elif provider_name.lower() == "minimax":
+    elif name == "minimax":
         return MinimaxProvider(**kwargs)
+    elif name == "direct":
+        return DirectProvider(**kwargs)
     else:
         raise ValueError(f"Unsupported LLM provider: {provider_name}")
