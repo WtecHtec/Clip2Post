@@ -85,6 +85,18 @@ class RemotionGenerator:
         """
         # Cleanup any stale invalid files from previous runs
         self.cleanup_invalid_files()
+
+        # Clean punctuation from captions for better subtitle aesthetics in video
+        import re
+        def clean_text(text):
+            # Remove: , . ! ? ; : ( ) [ ] { } " ' and Chinese equivalents
+            punctuation_pattern = r'[，。！？；：“”‘’（）【】\[\]\(\)\{\}\.,!?;:\"\'\-]'
+            return re.sub(punctuation_pattern, '', text).strip()
+            
+        if "captions" in props:
+            for caption in props["captions"]:
+                if "text" in caption:
+                    caption["text"] = clean_text(caption["text"])
         prompt_path = Path(__file__).parent / "prompts" / "remotion_developer.txt"
         with open(prompt_path, "r", encoding="utf-8") as f:
             system_prompt = f.read()
