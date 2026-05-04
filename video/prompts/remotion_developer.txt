@@ -11,28 +11,34 @@
    - 【严禁使用】：绝对不要从 `@remotion/react` 导入任何内容（该包不存在）。不要混淆 `react` 和 `remotion` 的导出内容。
 2. 【禁止外部依赖】：绝对不要引入任何外部的 CSS 文件或其他自定义组件，请全部使用内联样式（Inline Styles）来实现 UI。
 3. 【属性接收】：组件必须能够接收对应的 `props`。
-4. 【时间轴同步（极度重要，必须严格执行）】：`props.captions` 数组中的每条字幕都带有精确时间戳（`text`, `startMs`, `endMs`）。**内容元素与字幕必须绑定在同一个 `<Sequence>` 内，这是保证同步的唯一可靠方法**。
+4. 【视觉连续性与分层架构（极度重要，必须严格执行）】：
+   **必须采用分层架构以防止资产闪烁。** 内容资产（如图片）与字幕文本必须分离：
+   - **资产内容层 (AssetLayer)**：使用全局帧渲染。**核心规则：如果相邻字幕共用相同 `image_url`，该资产必须保持常驻，严禁重新触发入场动画或刷新。**
+   - **字幕文本层**：使用 `<Sequence>` 遍历 `props.captions`，仅处理文字的进场与消失，确保旁白与文字严格同步。
 
-   **强制使用以下架构**（代码必须包含完整内联实现，不得引用未定义的组件）：
+   **强制使用分层分时架构（代码必须包含完整内联实现）：**
    ```tsx
-   export default function MyScene(props: any) {
+   export default function DynamicScene(props: any) {
      const { fps, durationInFrames } = useVideoConfig();
-     const frame = useCurrentFrame();
+     const frame = useCurrentFrame(); // 全局帧
      const msToFrame = (ms: number) => Math.round((ms ?? 0) / 1000 * fps);
 
      return (
        <AbsoluteFill style={{ overflow: 'hidden', background: '#0a0a0a' }}>
-         {/* ── 层1：持久背景（贯穿全程，内联实现，不要抽出为单独组件） ── */}
-         <AbsoluteFill style={{ /* 渐变/粒子/几何背景的内联样式 */ }} />
+         {/* ── 层1：持久背景层（贯穿全程，不随字幕切换而闪烁） ── */}
+         <GlobalBackground frame={frame} />
 
-         {/* ── 层2：字幕驱动的内容 + 字幕，必须同住一个 Sequence ── */}
+         {/* ── 层2：资产内容层（处理图片无缝衔接的关键） ──
+             规则：如果连续字幕共用一张图，此层必须保证图片不刷新、不重播入场动画。 */}
+         <AssetLayer props={props} frame={frame} />
+
+         {/* ── 层3：字幕层（每条字幕独立 Sequence，处理文字进场） ── */}
          {props.captions.map((c: any, i: number) => {
            const from = msToFrame(c.startMs);
            const dur = Math.max(1, msToFrame(c.endMs) - from);
            return (
              <Sequence key={i} from={from} durationInFrames={dur}>
-               {/* Sequence 内 frame 从 0 开始，直接用于进场动效 */}
-               <InnerScene caption={c} index={i} total={props.captions.length} />
+               <CaptionOverlay text={c.text} />
              </Sequence>
            );
          })}
@@ -40,68 +46,36 @@
      );
    }
 
-    // InnerScene 必须完整内联实现（不能是外部引用），同时包含内容元素和字幕
-    function InnerScene({ caption, index, total }: any) {
-      const frame = useCurrentFrame(); // 此处 frame 从 0 开始（Sequence 局部帧）
-      const { fps } = useVideoConfig();
-      const enter = spring({ frame, fps, config: { damping: 12, stiffness: 100 } });
-      const opacity = interpolate(enter, [0, 1], [0, 1]);
-      const scale = interpolate(enter, [0, 1], [0.8, 1]);
-
-      return (
-        <AbsoluteFill style={{ overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          {/* ① 用户上传的素材图片（如果 image_url 存在） */}
-          {caption.image_url && (
-            <div style={{
-              opacity,
-              transform: `scale(${scale})`,
-              width: '80%',
-              height: '60%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: '0 20px 50px rgba(0,0,0,0.5)',
-              borderRadius: 30,
-              overflow: 'hidden',
-              border: '8px solid rgba(255,255,255,0.1)',
-              background: '#111'
-            }}>
-              <Img 
-                src={caption.image_url} 
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-              />
-            </div>
+   // AssetLayer 示例：通过全局 frame 判断当前该显示哪个 asset
+   function AssetLayer({ props, frame }: any) {
+     const { fps } = useVideoConfig();
+     const msToFrame = (ms: number) => Math.round((ms ?? 0) / 1000 * fps);
+     
+     // 找到当前时间点对应的字幕索引
+     const currentIndex = props.captions.findIndex((c: any) => {
+       const start = msToFrame(c.startMs);
+       const end = msToFrame(c.endMs);
+       return frame >= start && frame < end;
+     });
+     
+     const currentCaption = props.captions[currentIndex >= 0 ? currentIndex : 0];
+     
+     // 视觉连续性逻辑：检查上一条字幕是否共用同一图片
+     const prevCaption = currentIndex > 0 ? props.captions[currentIndex - 1] : null;
+     const isShared = prevCaption && prevCaption.image_url === currentCaption.image_url;
+     
+     // 如果是共享资产，则入场动画只在第一次出现时触发，或者使用全局持续动画（如缓慢缩放）
+     return (
+       <AbsoluteFill style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {currentCaption.image_url ? (
+            <Img src={currentCaption.image_url} style={{ width: '80%', borderRadius: 20 }} />
+          ) : (
+            <VisualCompensation text={currentCaption.text} />
           )}
-
-          {/* ② 字幕：必须在 Sequence 内，与内容严格同步 */}
-          <div style={{
-            position: 'absolute', bottom: 80, left: 80, right: 80,
-            opacity, color: '#fff', fontSize: 36, textAlign: 'center',
-            textShadow: '0 2px 12px rgba(0,0,0,0.8)', lineHeight: 1.5,
-            background: 'rgba(0,0,0,0.4)', padding: '10px 20px', borderRadius: 15
-          }}>
-            {caption.text}
-          </div>
-        </AbsoluteFill>
-      );
-    }
+       </AbsoluteFill>
+     );
+   }
    ```
-
-   **架构规则**（违反任何一条均会导致时间轴错乱或内容不显示）：
-   - **`InnerScene` 必须完整内联定义在同一文件**：不能引用文件外部未定义的组件。
-   - **内容与字幕必须同住一个 `<Sequence>`（通过 `InnerScene` 或直接内联）**：禁止将字幕提到 `Sequence` 外面单独渲染。
-   - **`<Sequence>` 内部 `useCurrentFrame()` 返回从 0 开始的局部帧**：进场动效直接用 `interpolate(frame, [0, N], ...)`，无需减去 `from`。
-   - **严禁硬编码帧数**：所有区间必须来自 `props.captions` 的 `startMs/endMs`。
-5. 【组件导出与命名规范（严禁重复定义）】：
-   - **主组件命名**：主组件必须命名为 `DynamicScene` 并作为默认导出。
-   - **禁止重复声明（违者必错）**：在一个文件中，任何符号（变量、常量、组件、接口）**只能定义一次**。
-   - **强制定义位置**：
-     1. 文件顶部：Imports
-     2. 文件中部：`DynamicScene` 主组件
-     3. **文件底部**：所有辅助组件（如 `InnerScene`、`FeatureCard` 等）和常量。
-   - **严禁重复输出代码**：如果一个组件（如 `StarCounter`）已经在文件底部定义过，严禁在其他地方再次定义它。
-   - **命名唯一性**：如果你需要定义多个类似的组件，请确保名称唯一（如 `FeatureCard1`, `FeatureCard2`），但更好的做法是定义一个通用的 `FeatureCard` 并通过 props 传参。
-   - **纯代码输出**：仅输出 TSX 代码块。
 
    **内容渲染规则（素材与创意平衡）**：
    - **优先使用素材图片**：如果 `caption.image_url` 不为空，**必须**将其作为核心视觉元素展示。图片必须添加进场动效（如 `spring` 缩放/位移）、边框阴影、圆角，并配合缓慢的推拉镜头。
@@ -109,7 +83,6 @@
      1. **关键词驱动视觉化**：从 `caption.text` 中提取核心语义关键词，使用超大字体（Kinetic Typography）作为视觉主体。
      2. **创意 SVG 绘图/动画**：使用 React + SVG 绘制与主题相关的几何图形、图标、雷达图、数据波形或动态线条。
      3. **场景总结包装**：利用 `backdrop-filter` 创造具有纵深感的毛玻璃容器，在其中排版展示字幕内容的要点总结。
-     4. **动态文字墙**：将字幕内容拆解，以不同的延迟、位置和角度用 `spring` 弹出，填满画面。
    - **视觉层次**：无论有无素材，画面都必须包含：1. 背景层（渐变/粒子）；2. 内容层（图片/SVG/关键词）；3. 字幕层。
 
 7. 【极致的美学与视觉张力（极度重要）】：拒绝平庸呆板的 PPT 式画面！你必须运用现代 Web UI/运动图形（Motion Graphics）的设计理念，实现令人惊艳的视觉张力：
@@ -125,7 +98,6 @@
 8. 【{{ASPECT_RATIO}} 视频美学、边界安全与字幕安全（强制要求）】：
    - 视频尺寸固定为 **{{WIDTH}}x{{HEIGHT}} ({{ORIENTATION}})**。你必须按照该比例思维进行排版，避免元素过于拥挤或过于分散。
    - **根容器必须设置裁剪**：组件最外层的容器必须设置 `overflow: 'hidden'`，防止任何子元素渲染到视频画面以外。
-   - **所有绝对定位元素必须在画布范围内**：使用 `position: 'absolute'` 的元素，其 `top`、`left`、`right`、`bottom` 值必须确保元素完整显示在 `0 ~ {{WIDTH}}px`（横）、`0 ~ {{HEIGHT}}px`（纵）范围内。对于动画元素，要检查动画过程中的最大/最小位移是否也在范围内。
    - **字幕安全区域**：所有文字必须显示在屏幕内，严禁超出边界。保持左右至少 `80px` 的内边距，文字容器宽度不超过 `{{WIDTH}} - 160px`。
    - 推荐布局：{{SUBTITLE_PLACEMENT}}。
    - 适配性：对于长句子，必须实现自动换行（如使用 `flexWrap: 'wrap'` 或限制 `maxWidth`）或动态缩小字号，确保在屏幕上完整呈现。
@@ -136,5 +108,4 @@
    - **`useCurrentFrame()` 的位置**：同样必须在组件顶层调用，不能在循环或回调中使用。
    - **`interpolate()` 的 `inputRange` 必须严格单调递增且全为有效数字**：
      - **单调递增**：`inputRange` 数组中的每个值必须严格大于前一个值，不能相等也不能倒序（如 `[0,12,-11,1]` 中 `-11 < 12` 就会崩溃）。常见触发原因：帧数计算顺序错误，或字幕 `startMs/endMs` 直接用了原始值而未排序。
-     - **必须全为数字**：`inputRange` 中绝对不能出现 `NaN`、`undefined`、`null` 或字符串，否则报错 `inputRange must contain only numbers`。常见触发原因：`fps` 或 `startMs/endMs` 为 `undefined` 时直接参与计算（`undefined * 30 = NaN`）。正确做法：在计算前先校验所有输入值，例如：`const start = Math.round((c.startMs ?? 0) / 1000 * fps); const end = Math.max(start + 1, Math.round((c.endMs ?? 0) / 1000 * fps));`，并确保 `fps` 已从 `useVideoConfig()` 中正确获取。
    - **DynamicScene 组件内严禁渲染任何音频**：TTS 旁白音频和背景音乐（BGM）已由外层 Wrapper 组件统一负责播放，你的组件**绝对不能**再添加任何 `<Audio>` 组件或 `new Audio()` 调用。否则会因为路径解析错误（`staticFile()` 只解析 Remotion 内部服务的资源，而非 FastAPI 的音频文件）导致 404 报错，且会与 Wrapper 中的音频产生冲突。你的 DynamicScene 组件只负责视觉渲染，不处理任何音频。
