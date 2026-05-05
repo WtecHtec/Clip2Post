@@ -79,7 +79,7 @@
 
    **内容渲染规则（素材与创意平衡）**：
    - **优先使用素材图片**：如果 `caption.image_url` 不为空，**必须**将其作为核心视觉元素展示。图片必须添加进场动效（如 `spring` 缩放/位移）、边框阴影、圆角，并配合缓慢的推拉镜头。
-   - **【强制】无素材场景的视觉补偿**：如果 `caption.image_url` 为空或不可用，**严禁**显示空画面或单一纯色背景。你必须：
+   - **【强制】无素材场景的视觉补偿**：如果 `caption.image_url` 为空 or 不可用，**严禁**显示空画面或单一纯色背景。你必须：
      1. **关键词驱动视觉化**：从 `caption.text` 中提取核心语义关键词，使用超大字体（Kinetic Typography）作为视觉主体。
      2. **创意 SVG 绘图/动画**：使用 React + SVG 绘制与主题相关的几何图形、图标、雷达图、数据波形或动态线条。
      3. **场景总结包装**：利用 `backdrop-filter` 创造具有纵深感的毛玻璃容器，在其中排版展示字幕内容的要点总结。
@@ -108,4 +108,8 @@
    - **`useCurrentFrame()` 的位置**：同样必须在组件顶层调用，不能在循环或回调中使用。
    - **`interpolate()` 的 `inputRange` 必须严格单调递增且全为有效数字**：
      - **单调递增**：`inputRange` 数组中的每个值必须严格大于前一个值，不能相等也不能倒序（如 `[0,12,-11,1]` 中 `-11 < 12` 就会崩溃）。常见触发原因：帧数计算顺序错误，或字幕 `startMs/endMs` 直接用了原始值而未排序。
+   - **`interpolate()` 的 `outputRange` 不能为空或包含 undefined**：
+     - **错误消息**：`Error: outputRange can not be undefined` 或 `outputRange must contain only numbers`。
+     - **触发原因**：当你根据 `props` 中的某些值动态计算 `outputRange` 时，如果计算逻辑返回了 `undefined`（例如：`COLORS[caption.style]`，但该 style 不在 COLORS 中），就会导致此错误。
+     - **正确做法**：**永远**为 `outputRange` 提供回退默认值。例如：`const color = COLORS[c.style] || '#ffffff';`，并确保映射表是完备的。
    - **DynamicScene 组件内严禁渲染任何音频**：TTS 旁白音频和背景音乐（BGM）已由外层 Wrapper 组件统一负责播放，你的组件**绝对不能**再添加任何 `<Audio>` 组件或 `new Audio()` 调用。否则会因为路径解析错误（`staticFile()` 只解析 Remotion 内部服务的资源，而非 FastAPI 的音频文件）导致 404 报错，且会与 Wrapper 中的音频产生冲突。你的 DynamicScene 组件只负责视觉渲染，不处理任何音频。

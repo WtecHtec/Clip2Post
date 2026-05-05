@@ -1521,9 +1521,14 @@ def process_regeneration_task(task_id: str):
         with open(props_path, "r", encoding="utf-8") as f:
             props = json.load(f)
 
+        # 4. Calculate Duration
+        captions = props.get("captions", [])
+        total_duration_ms = captions[-1]["endMs"] if captions else 3000
+        duration_frames = int((total_duration_ms / 1000) * 30) + 30
+
         task_manager.update_status(0.2, "正在基于上次提示词重新生成代码...", "processing")
         
-        # 4. Initialize Generator
+        # 5. Initialize Generator
         from video.llm_provider import get_llm_provider
         from video.remotion_generator import RemotionGenerator
         import time
@@ -1534,7 +1539,7 @@ def process_regeneration_task(task_id: str):
         remotion_dir = Path(__file__).parent / "skills" / "remotion"
         generator = RemotionGenerator(remotion_dir, provider)
         
-        # 5. Execute Generation and Render
+        # 6. Execute Generation and Render
         timestamp = time.strftime("%Y%m%d_%H%M%S")
         video_output = task_dir / "videos" / f"remotion_video_regen_{timestamp}.mp4"
         
@@ -1545,6 +1550,7 @@ def process_regeneration_task(task_id: str):
             user_intent=combined_intent,
             props=props,
             output_path=str(video_output),
+            duration_frames=duration_frames,
             max_retries=meta.get("max_retries", 1),
             aspect_ratio=meta.get("aspect_ratio", "9:16"),
             log_dir=task_log_dir
@@ -1562,6 +1568,8 @@ def process_regeneration_task(task_id: str):
 @app.post("/api/tasks/{task_id}/regenerate_dynamic")
 async def regenerate_dynamic_video(task_id: str, background_tasks: BackgroundTasks):
     """Endpoint to trigger a new generation based on previous context."""
+    task_manager = TaskManager(task_id=task_id)
+    task_manager.update_status(0.1, "正在基于上次提示词重新生成代码...", "processing")
     background_tasks.add_task(process_regeneration_task, task_id)
     return {"message": "Regeneration task started.", "task_id": task_id}
 
