@@ -3,7 +3,7 @@ import shutil
 import asyncio
 import json
 from pathlib import Path
-from typing import List
+from typing import List, Dict, Any, Optional
 from fastapi import FastAPI, UploadFile, File, BackgroundTasks, Form
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -259,14 +259,14 @@ def process_dynamic_video_pipeline(
     prompt: str,
     tts_engine: str = "edge",
     voice: str = "",
-    temperature: float = 0.3,
+    temperature: float = 0.7,
     top_p: float = 0.7,
     top_k: int = 20,
-    speed: float = 5,
+    speed: float = 1.0,
     refine_text: bool = True,
     bgm: str = "",
     aspect_ratio: str = "9:16",
-    user_images: List[dict] = None,  # [{"url": "...", "description": "..."}]
+    user_assets: List[Dict[str, Any]] = None,
     max_retries: int = 1
 ):
     """Background task for LLM Dynamic Template Video generation."""
@@ -284,13 +284,13 @@ def process_dynamic_video_pipeline(
             system_msg = f.read()
 
         user_content = f"视频比例：{aspect_ratio}\n用户需求：{prompt}"
-        if user_images:
-            user_content += "\n\n用户提供的素材图片（请优先考虑在脚本中合理展示它们）：\n"
-            for idx, img in enumerate(user_images):
-                user_content += f"- 图片{idx+1}: {img['description']} (引用地址: {img['url']})\n"
-            user_content += "\n请在脚本的 scene 元素中增加一个 image_url 字段（如果该场景适合展示某张用户图片）。"
+        if user_assets:
+            user_content += "\n\n用户提供的素材（请优先考虑在脚本中合理展示它们）：\n"
+            for idx, asset in enumerate(user_assets):
+                user_content += f"- 素材{idx+1} ({asset['type']}): {asset['description']} (引用地址: {asset['url']})\n"
+            user_content += "\n请在脚本的 scene 元素中增加 image_url 字段（用于图片）或 video_url 字段（用于视频）。"
 
-        # NEW: Save Director prompt context
+        # Save Director prompt context
         user_prompt_dir = task_manager.get_dir("user_prompt")
         user_prompt_dir.mkdir(parents=True, exist_ok=True)
         with open(user_prompt_dir / "director_context.txt", "w", encoding="utf-8") as f:
@@ -304,78 +304,41 @@ def process_dynamic_video_pipeline(
         task_log_dir = str(task_manager.get_dir("llm_logs"))
         llm_resp = provider.generate(messages, log_dir=task_log_dir)
         
-        # Parse JSON - robust multi-step approach
+        # Parse JSON
         import re, json
-        
-        # Step 0: Strip <think>...</think> blocks emitted by reasoning models
         llm_resp_clean = re.sub(r'<think>.*?</think>', '', llm_resp, flags=re.DOTALL).strip()
-        
-        # Step 1: Try extracting from ```json ... ``` code block
         json_block_match = re.search(r'```(?:json)?\s*\n?(\{.*?\})\s*\n?```', llm_resp_clean, re.DOTALL)
         if json_block_match:
             raw_json = json_block_match.group(1)
         else:
-            # Step 2: Try to find outermost { ... }
             brace_match = re.search(r'\{.*\}', llm_resp_clean, re.DOTALL)
             raw_json = brace_match.group(0) if brace_match else None
 
         data = None
         if raw_json:
-            # Try strict=False first
             try:
                 data = json.loads(raw_json, strict=False)
-            except json.JSONDecodeError:
+            except:
                 pass
-            
-            if data is None:
-                # Try replacing literal newlines inside string values
-                try:
-                    # Replace literal newlines that appear inside JSON strings
-                    fixed = re.sub(r'(?<!\\)\n', r'\\n', raw_json)
-                    data = json.loads(fixed, strict=False)
-                except json.JSONDecodeError:
-                    pass
+        
+        if not data:
+            scenes = [{"text": prompt, "visual": "Dynamic rendering", "image_url": ""}]
+            visual_style = "Modern and dynamic"
+        else:
+            scenes = data.get("scenes", [])
+            visual_style = data.get("visual_style", "").strip()
+            if not scenes and data.get("voiceover"):
+                scenes = [{"text": data["voiceover"], "visual": visual_style, "image_url": ""}]
 
-        # Step 3: Field-by-field regex fallback  
-        if data is None:
-            visual_match = re.search(r'"visual_style"\s*:\s*"(.*?)"(?=\s*[,}])', llm_resp_clean, re.DOTALL)
-            # For scenes, we try to grab a list but fallback is harder. 
-            # If everything else fails, we just use the clean text for voiceover.
-            data = {
-                "visual_style": visual_match.group(1).replace('\\n', '\n') if visual_match else "",
-                "scenes": [] # Fallback
-            }
+        # 2. TTS Generation
+        task_manager.update_status(0.3, f"正在进行语音合成 ({tts_engine})...", "processing")
         
-        scenes = data.get("scenes", [])
-        visual_style = data.get("visual_style", "").strip()
+        voiceover_text = " ".join([s.get("text", "") for s in scenes])
+        task_dir = task_manager.get_dir("")
+        output_base = task_dir / "audio" / "tts_output"
+        output_base.parent.mkdir(parents=True, exist_ok=True)
         
-        if not scenes:
-            # Fallback if scenes missing but voiceover exists (for backward compatibility or error)
-            v_text = data.get("voiceover", "").strip()
-            if v_text:
-                scenes = [{"text": v_text, "visual": visual_style, "image_url": ""}]
-            else:
-                raise ValueError(f"LLM generated empty script. Raw response: {llm_resp_clean[:300]}")
-
-        # Join all scene texts for TTS
-        voiceover_text = " ".join([s.get("text", "").strip() for s in scenes])
-        
-        task_manager.update_status(0.1, f"正在生成语音 ({tts_engine})...", "processing", task_type="dynamic_video")
-        
-        # Save raw text as subtitle for UI display
-        subtitle_dir = task_manager.get_dir("subtitle")
-        with open(subtitle_dir / "subtitle.txt", 'w', encoding='utf-8') as f:
-            f.write(voiceover_text)
-        
-        audio_dir = task_manager.get_dir("audio")
-        output_base = audio_dir / "tts_output"
-        
-        # 2. Generate TTS
-        if tts_engine == "kokoro":
-            voice = voice or "af_heart"
-            from tts.kokoro_processor import run_kokoro_tts_sync
-            audio_path, json_path = run_kokoro_tts_sync(voiceover_text, str(output_base), voice=voice)
-        elif tts_engine == "chattts":
+        if tts_engine == "chattts":
             from tts.chattts_processor import run_chattts_sync
             audio_path, json_path = run_chattts_sync(
                 voiceover_text, str(output_base), voice=voice,
@@ -395,90 +358,88 @@ def process_dynamic_video_pipeline(
         with open(json_path, 'r', encoding='utf-8') as f:
             captions = json.load(f)
             
-        import re
-        # Clean captions and map images
-        # Simple mapping: distribute scenes over captions by text matching or sequence
-        # Here we use a simple sequence-based approach since texts are joined in order
+        # Clean captions and map assets
         current_scene_idx = 0
         current_scene_text_accum = ""
-        
-        # Whitelist of valid image URLs
-        valid_image_urls = {img['url'] for img in (user_images or [])}
+        valid_asset_urls = {asset['url'] for asset in (user_assets or [])}
         
         for c in captions:
             if "text" in c:
                 c["text"] = re.sub(r'\[.*?\]\s*', '', c["text"]).strip()
-                # Attach image_url if this caption belongs to a scene that has one
                 scene = scenes[current_scene_idx] if current_scene_idx < len(scenes) else scenes[-1]
                 
-                img_url = scene.get("image_url", "")
-                # SAFETY CHECK: Only allow URLs that were actually provided to the LLM
-                if img_url and img_url not in valid_image_urls:
-                    print(f"      [Warning] Filtering hallucinated image_url: {img_url}")
-                    img_url = ""
+                asset_url = scene.get("image_url") or scene.get("video_url") or ""
+                if asset_url and asset_url not in valid_asset_urls:
+                    asset_url = ""
                 
-                c["image_url"] = img_url
+                c["image_url"] = asset_url # Primary field
+                
+                asset_type = "image"
+                if user_assets:
+                    for a in user_assets:
+                        if a["url"] == asset_url:
+                            asset_type = a["type"]
+                            break
+                c["asset_type"] = asset_type
                 c["visual_suggestion"] = scene.get("visual", "")
                 
-                # If this caption's text starts to look like the NEXT scene's text, we might want to advance
-                # But TTS often splits sentences. So we just advance when we've seen enough of the current scene.
                 current_scene_text_accum += c["text"]
                 if current_scene_idx < len(scenes) - 1:
                     target_text = scenes[current_scene_idx].get("text", "").strip()
-                    # If we've reached the end of current scene's text (roughly)
                     if len(current_scene_text_accum) >= len(target_text) * 0.9:
                         current_scene_idx += 1
                         current_scene_text_accum = ""
+
+        # 3. Code Generation and Rendering
+        generator = RemotionGenerator(Path(__file__).parent / "skills" / "remotion", provider)
+        output_path = task_manager.get_dir("videos") / "remotion_video.mp4"
         
-        audio_abs_url = f"http://localhost:8000/tasks/{task_id}/audio/{Path(audio_path).name}"
-        
-        props = {
-            "captions": captions,
-            "audioUrl": audio_abs_url,
-        }
-        if bgm:
-            props["bgm"] = bgm
-            
-        video_output = task_manager.get_dir("videos") / "remotion_video.mp4"
+        # Calculate duration
         total_duration_ms = captions[-1]["endMs"] if captions else 3000
         duration_frames = int((total_duration_ms / 1000) * 30) + 30
-        
-        remotion_dir = Path(__file__).parent / "skills" / "remotion"
-        generator = RemotionGenerator(remotion_dir, provider)
-        
-        task_manager.update_status(0.6, "正在渲染动态模板...", "processing")
-        
-        # Combine user prompt, visual style and scene suggestions for the component generator
+
+        props = {
+            "captions": captions,
+            "audioUrl": f"http://localhost:8000/tasks/{task_id}/audio/{Path(audio_path).name}",
+            "visual_style": visual_style,
+            "aspect_ratio": aspect_ratio
+        }
+        if bgm:
+            # Also ensure BGM is absolute
+            if bgm.startswith("http"):
+                props["bgm"] = bgm
+            else:
+                props["bgm"] = f"http://localhost:8000/bgm/{bgm}"
+
+        # Combine user prompt, visual style and scene suggestions for the developer agent
         scene_guidelines = "\n".join([f"Scene {i+1}: {s.get('visual')}" for i, s in enumerate(scenes)])
-        
-        # Include actual subtitles and timings for the LLM to refer to
         subtitles_json = json.dumps(captions, ensure_ascii=False, indent=2)
         
         combined_intent = f"User Request: {prompt}\n\nVisual Style Directives:\n{visual_style}\n\nScene Guidelines:\n{scene_guidelines}\n\nFinal Subtitles & Timings:\n{subtitles_json}"
         
-        # If user images were provided, explicitly mention they are in the captions image_url field
-        if user_images:
-            combined_intent += "\n\nIMPORTANT: User images are provided in the 'image_url' field of each caption in props. Please render them when image_url is not empty."
+        if user_assets:
+            combined_intent += "\n\nIMPORTANT: User assets are provided in the 'image_url' and 'asset_type' fields of each caption in props. Please render them accordingly."
 
-        # NEW: Save Developer prompt context
+        # Save Developer prompt context for future regenerations
         with open(user_prompt_dir / "developer_context.txt", "w", encoding="utf-8") as f:
             f.write(combined_intent)
 
         generator.generate_and_render(
             user_intent=combined_intent,
             props=props,
-            output_path=str(video_output),
+            output_path=str(output_path),
             duration_frames=duration_frames,
-            log_dir=task_log_dir,
             max_retries=max_retries,
+            log_dir=str(task_manager.get_dir("llm_logs")),
             aspect_ratio=aspect_ratio
         )
         
-        task_manager.update_status(1.0, "合成成功！", "completed")
-        
+        task_manager.update_status(1.0, "动态视频生成成功！", "completed")
+
     except Exception as e:
         import traceback
-        task_manager.update_status(1.0, f"合成失败: {str(e)}", "error")
+        error_msg = f"动态视频生成失败: {str(e)}"
+        task_manager.update_status(1.0, error_msg, "error")
         print(traceback.format_exc())
 
 
@@ -1292,16 +1253,16 @@ async def generate_dynamic_video(
     task_id = task_manager.task_id
     task_manager.update_status(0.01, "初始化动态模板任务...", "processing", task_type="dynamic_video")
     
-    # Process uploaded images
-    user_images = []
+    # Process uploaded assets (images and videos)
+    user_assets = []
     
     # Create task directory
     task_dir = task_manager.get_dir("")
     task_dir.mkdir(parents=True, exist_ok=True)
     
     if files:
-        images_dir = task_dir / "images"
-        images_dir.mkdir(parents=True, exist_ok=True)
+        assets_dir = task_dir / "assets"
+        assets_dir.mkdir(parents=True, exist_ok=True)
         
         # Parse descriptions
         try:
@@ -1311,14 +1272,19 @@ async def generate_dynamic_video(
             
         for i, file in enumerate(files):
             # Save file
-            file_path = images_dir / file.filename
+            file_path = assets_dir / file.filename
             with open(file_path, "wb") as f:
                 shutil.copyfileobj(file.file, f)
             
-            # Construct URL (assuming FastAPI is accessible at localhost:8000)
-            img_url = f"http://localhost:8000/tasks/{task_id}/images/{file.filename}"
+            # Construct URL
+            asset_url = f"http://localhost:8000/tasks/{task_id}/assets/{file.filename}"
+            
+            # Identify type
+            ext = Path(file.filename).suffix.lower()
+            asset_type = "video" if ext in [".mp4", ".mov", ".webm", ".mkv"] else "image"
+            
             desc = descriptions[i] if i < len(descriptions) else ""
-            user_images.append({"url": img_url, "description": desc})
+            user_assets.append({"url": asset_url, "type": asset_type, "description": desc})
 
     # NEW: Create user_prompt folder and save input meta (including processed images)
     user_prompt_dir = task_dir / "user_prompt"
@@ -1333,7 +1299,7 @@ async def generate_dynamic_video(
             "bgm": bgm,
             "aspect_ratio": aspect_ratio,
             "image_descriptions": image_descriptions,
-            "user_images": user_images, # Save the URLs for CLI tool
+            "user_assets": user_assets, # Updated from user_images
             "timestamp": task_id,
             "temperature": temperature,
             "top_p": top_p,
@@ -1356,7 +1322,7 @@ async def generate_dynamic_video(
         refine_text=refine_text,
         bgm=bgm,
         aspect_ratio=aspect_ratio,
-        user_images=user_images,
+        user_assets=user_assets, # Updated from user_images
         max_retries=max_retries
     )
     

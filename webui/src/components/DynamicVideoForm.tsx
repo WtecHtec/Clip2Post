@@ -36,7 +36,7 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
     const [speed, setSpeed] = useState(() => parseFloat(localStorage.getItem('dynamic-video-speed') || '1.0'));
     const [maxRetries, setMaxRetries] = useState(() => parseInt(localStorage.getItem('dynamic-video-maxRetries') || '1'));
     const [aspectRatio, setAspectRatio] = useState<'9:16' | '16:9'>(() => (localStorage.getItem('dynamic-video-aspectRatio') as '9:16' | '16:9') || '9:16');
-    const [userImages, setUserImages] = useState<{ file: File; description: string }[]>([]);
+    const [userAssets, setUserAssets] = useState<{ file: File; description: string; type: 'image' | 'video'; previewUrl: string }[]>([]);
 
     useEffect(() => {
         localStorage.setItem('dynamic-video-prompt', prompt);
@@ -93,30 +93,46 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
         }
     };
 
-    const handleAddImage = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleAddAsset = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
-            const newFiles = Array.from(e.target.files).map(file => ({ file, description: '' }));
-            setUserImages([...userImages, ...newFiles]);
+            const newFiles = Array.from(e.target.files).map(file => ({ 
+                file, 
+                description: '',
+                type: file.type.startsWith('video/') ? 'video' as const : 'image' as const,
+                previewUrl: URL.createObjectURL(file)
+            }));
+            setUserAssets([...userAssets, ...newFiles]);
         }
     };
 
-    const handleRemoveImage = (index: number) => {
-        setUserImages(userImages.filter((_, i) => i !== index));
+    const handleRemoveAsset = (index: number) => {
+        const asset = userAssets[index];
+        if (asset.previewUrl) URL.revokeObjectURL(asset.previewUrl);
+        setUserAssets(userAssets.filter((_, i) => i !== index));
     };
 
     const handleDescriptionChange = (index: number, desc: string) => {
-        const updated = [...userImages];
-        updated[index].description = desc;
-        setUserImages(updated);
+        const updated = [...userAssets];
+        updated[index] = { ...updated[index], description: desc };
+        setUserAssets(updated);
     };
+
+    // Cleanup URLs on unmount
+    useEffect(() => {
+        return () => {
+            userAssets.forEach(asset => {
+                if (asset.previewUrl) URL.revokeObjectURL(asset.previewUrl);
+            });
+        };
+    }, []);
 
     const handleSubmit = () => {
         if (!prompt.trim()) return;
         
         // Ensure all descriptions are filled
-        const missingDesc = userImages.some(img => !img.description.trim());
+        const missingDesc = userAssets.some(asset => !asset.description.trim());
         if (missingDesc) {
-            alert('请为所有图片填写描述 (Descriptions are mandatory)');
+            alert('请为所有素材填写描述 (Descriptions are mandatory)');
             return;
         }
 
@@ -131,8 +147,8 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
             refine_text: refineText,
             bgm: bgm !== 'none' ? bgm : undefined,
             aspectRatio,
-            files: userImages.map(img => img.file),
-            imageDescriptions: JSON.stringify(userImages.map(img => img.description)),
+            files: userAssets.map(asset => asset.file),
+            imageDescriptions: JSON.stringify(userAssets.map(asset => asset.description)),
             maxRetries
         });
     };
@@ -196,11 +212,11 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
 
             <div style={{ marginBottom: '1.5rem', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
                 <h4 className="section-title" style={{ marginBottom: '1rem', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <Image size={18} /> 🖼️ 素材图片 (Source Images)
+                    <Image size={18} /> 🖼️ 素材 (Images & Videos)
                 </h4>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem' }}>
-                        {userImages.map((img, idx) => (
+                        {userAssets.map((asset, idx) => (
                             <div key={idx} style={{ 
                                 position: 'relative', 
                                 background: 'rgba(0,0,0,0.4)', 
@@ -209,13 +225,23 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
                                 border: '1px solid rgba(255,255,255,0.1)'
                             }}>
                                 <div style={{ position: 'relative', width: '100%', aspectRatio: '16/9', borderRadius: '8px', overflow: 'hidden', marginBottom: '0.75rem' }}>
-                                    <img 
-                                        src={URL.createObjectURL(img.file)} 
-                                        alt={`upload-${idx}`} 
-                                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                    />
+                                    {asset.type === 'video' ? (
+                                        <video 
+                                            src={asset.previewUrl} 
+                                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                            muted
+                                            controls
+                                            autoPlay={false}
+                                        />
+                                    ) : (
+                                        <img 
+                                            src={asset.previewUrl} 
+                                            alt={`upload-${idx}`} 
+                                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                        />
+                                    )}
                                     <button 
-                                        onClick={() => handleRemoveImage(idx)}
+                                        onClick={() => handleRemoveAsset(idx)}
                                         style={{ 
                                             position: 'absolute', top: '5px', right: '5px', 
                                             background: 'rgba(239, 68, 68, 0.8)', color: 'white', 
@@ -227,11 +253,11 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
                                     </button>
                                 </div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                    <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>图片描述 (必填):</label>
+                                    <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>素材描述 (必填):</label>
                                     <textarea
-                                        value={img.description}
+                                        value={asset.description}
                                         onChange={(e) => handleDescriptionChange(idx, e.target.value)}
-                                        placeholder="例如：这是产品的正面特写，展示了精致的金属拉丝纹理"
+                                        placeholder="例如：这是产品的正面特写..."
                                         style={{ 
                                             width: '100%', minHeight: '60px', padding: '0.5rem', 
                                             borderRadius: '6px', background: 'rgba(0,0,0,0.3)', 
@@ -251,14 +277,14 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
                             minHeight: '150px',
                             transition: 'all 0.2s ease'
                         }} className="upload-box-hover">
-                            <input type="file" multiple accept="image/*" onChange={handleAddImage} style={{ display: 'none' }} />
+                            <input type="file" multiple accept="image/*,video/*" onChange={handleAddAsset} style={{ display: 'none' }} />
                             <Plus size={32} color="var(--text-secondary)" />
-                            <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>添加图片</span>
+                            <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>添加素材 (图片/视频)</span>
                         </label>
                     </div>
-                    {userImages.length > 0 && (
+                    {userAssets.length > 0 && (
                         <p style={{ fontSize: '0.8rem', color: 'var(--accent-primary)', marginTop: '0.5rem' }}>
-                            💡 提示：详细的描述能帮助 LLM 更好地决定图片的展示时机。
+                            💡 提示：详细的描述能帮助 LLM 更好地决定素材的展示时机。
                         </p>
                     )}
                 </div>

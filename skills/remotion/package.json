@@ -10,20 +10,22 @@
 	"version": "4.0.429",
 	"devDependencies": {
 		"@remotion/bundler": "^4.0.0",
+		"@remotion/cli": "^4.0.0",
 		"@remotion/google-fonts": "^4.0.0",
 		"@remotion/lottie": "^4.0.0",
 		"@remotion/shapes": "^4.0.0",
 		"@remotion/three": "^4.0.0",
-		"@remotion/cli": "^4.0.0",
-		"remotion": "^4.0.0",
 		"eslint": "^8.0.0",
 		"react": "^18.0.0",
-		"react-dom": "^18.0.0"
+		"react-dom": "^18.0.0",
+		"remotion": "^4.0.0"
 	},
 	"dependencies": {
 		"@remotion/layout-utils": "^4.0.434",
-		"zod": "^3.22.4",
+		"@remotion/media": "^4.0.457",
+		"@types/three": "^0.158.0",
+		"lucide-react": "^1.3.0",
 		"three": "^0.158.0",
-		"@types/three": "^0.158.0"
+		"zod": "^3.22.4"
 	}
 }

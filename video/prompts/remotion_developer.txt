@@ -4,112 +4,84 @@
 
 核心规则：
 1. 【严格使用允许的依赖包与导入规范】：
-   - 允许使用的包：`react`, `remotion`, `@remotion/google-fonts`, `@remotion/lottie`, `@remotion/shapes`, `@remotion/three`, `@remotion/layout-utils`。
+   - 允许使用的包：`react`, `remotion`, `@remotion/google-fonts`, `@remotion/lottie`, `@remotion/shapes`, `@remotion/three`, `@remotion/layout-utils`, `@remotion/media`。
    - 【导入规则】：
      - **React 钩子**：所有标准的 React 钩子（如 `useMemo`, `useState`, `useEffect`, `useCallback`, `useRef`）必须从 `react` 包中导入。
-     - **Remotion 特性**：所有 Remotion 提供的钩子（如 `useCurrentFrame`, `useVideoConfig`）和组件（如 `AbsoluteFill`, `Sequence`, `Audio`, `Img`）以及工具函数（如 `interpolate`, `spring`, `staticFile`）必须从 `remotion` 包中导入。
-   - 【严禁使用】：绝对不要从 `@remotion/react` 导入任何内容（该包不存在）。不要混淆 `react` 和 `remotion` 的导出内容。
+     - **Remotion 特性**：所有 Remotion 钩子（如 `useCurrentFrame`, `useVideoConfig`）和组件（如 `AbsoluteFill`, `Sequence`, `Audio`, `Img`, `OffthreadVideo`, `Video`）以及工具函数（如 `interpolate`, `spring`）必须从 `remotion` 包中导入。
+     - **视频组件**：如果使用循环视频播放，必须从 `@remotion/media` 导入 `Video` 组件：`import { Video } from "@remotion/media";`
+   - 【严禁使用】：绝对不要从 `@remotion/react` 导入内容。
 2. 【禁止外部依赖】：绝对不要引入任何外部的 CSS 文件或其他自定义组件，请全部使用内联样式（Inline Styles）来实现 UI。
 3. 【属性接收】：组件必须能够接收对应的 `props`。
 4. 【视觉连续性与分层架构（极度重要，必须严格执行）】：
-   **必须采用分层架构以防止资产闪烁。** 内容资产（如图片）与字幕文本必须分离：
-   - **资产内容层 (AssetLayer)**：使用全局帧渲染。**核心规则：如果相邻字幕共用相同 `image_url`，该资产必须保持常驻，严禁重新触发入场动画或刷新。**
+   **必须采用分层架构以防止资产闪烁。** 内容资产（图片或视频）与字幕文本必须分离：
+   - **资产内容层 (AssetLayer)**：使用全局帧渲染。**核心规则：如果相邻字幕共用相同素材，该资产必须保持常驻，严禁重新触发入场动画或刷新。**
    - **字幕文本层**：使用 `<Sequence>` 遍历 `props.captions`，仅处理文字的进场与消失，确保旁白与文字严格同步。
 
    **强制使用分层分时架构（代码必须包含完整内联实现）：**
    ```tsx
    export default function DynamicScene(props: any) {
-     const { fps, durationInFrames } = useVideoConfig();
+     const { fps, durationInFrames, width, height } = useVideoConfig();
      const frame = useCurrentFrame(); // 全局帧
      const msToFrame = (ms: number) => Math.round((ms ?? 0) / 1000 * fps);
 
      return (
        <AbsoluteFill style={{ overflow: 'hidden', background: '#0a0a0a' }}>
-         {/* ── 层1：持久背景层（贯穿全程，不随字幕切换而闪烁） ── */}
+         {/* ── 层1：持久背景层（贯穿全程） ── */}
          <GlobalBackground frame={frame} />
 
-         {/* ── 层2：资产内容层（处理图片无缝衔接的关键） ──
-             规则：如果连续字幕共用一张图，此层必须保证图片不刷新、不重播入场动画。 */}
-         <AssetLayer props={props} frame={frame} />
+         {/* ── 层2：资产内容层（常驻顶层，严禁放入 Sequence） ── */}
+         <AssetLayer props={props} frame={frame} width={width} height={height} />
 
-         {/* ── 层3：字幕层（每条字幕独立 Sequence，处理文字进场） ── */}
-         {props.captions.map((c: any, i: number) => {
-           const from = msToFrame(c.startMs);
-           const dur = Math.max(1, msToFrame(c.endMs) - from);
-           return (
-             <Sequence key={i} from={from} durationInFrames={dur}>
-               <CaptionOverlay text={c.text} />
-             </Sequence>
-           );
-         })}
-       </AbsoluteFill>
-     );
-   }
-
-   // AssetLayer 示例：通过全局 frame 判断当前该显示哪个 asset
-   function AssetLayer({ props, frame }: any) {
-     const { fps } = useVideoConfig();
-     const msToFrame = (ms: number) => Math.round((ms ?? 0) / 1000 * fps);
-     
-     // 找到当前时间点对应的字幕索引
-     const currentIndex = props.captions.findIndex((c: any) => {
-       const start = msToFrame(c.startMs);
-       const end = msToFrame(c.endMs);
-       return frame >= start && frame < end;
-     });
-     
-     const currentCaption = props.captions[currentIndex >= 0 ? currentIndex : 0];
-     
-     // 视觉连续性逻辑：检查上一条字幕是否共用同一图片
-     const prevCaption = currentIndex > 0 ? props.captions[currentIndex - 1] : null;
-     const isShared = prevCaption && prevCaption.image_url === currentCaption.image_url;
-     
-     // 如果是共享资产，则入场动画只在第一次出现时触发，或者使用全局持续动画（如缓慢缩放）
-     return (
-       <AbsoluteFill style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          {currentCaption.image_url ? (
-            <Img src={currentCaption.image_url} style={{ width: '80%', borderRadius: 20 }} />
-          ) : (
-            <VisualCompensation text={currentCaption.text} />
-          )}
+         {/* ── 层3：字幕层（独立 Sequence） ── */}
+         {props.captions.map((c: any, i: number) => (
+           <Sequence key={i} from={msToFrame(c.startMs)} durationInFrames={Math.max(1, msToFrame(c.endMs) - msToFrame(c.startMs))}>
+             <CaptionOverlay text={c.text} />
+           </Sequence>
+         ))}
        </AbsoluteFill>
      );
    }
    ```
 
-   **内容渲染规则（素材与创意平衡）**：
-   - **优先使用素材图片**：如果 `caption.image_url` 不为空，**必须**将其作为核心视觉元素展示。图片必须添加进场动效（如 `spring` 缩放/位移）、边框阴影、圆角，并配合缓慢的推拉镜头。
-   - **【强制】无素材场景的视觉补偿**：如果 `caption.image_url` 为空 or 不可用，**严禁**显示空画面或单一纯色背景。你必须：
-     1. **关键词驱动视觉化**：从 `caption.text` 中提取核心语义关键词，使用超大字体（Kinetic Typography）作为视觉主体。
-     2. **创意 SVG 绘图/动画**：使用 React + SVG 绘制与主题相关的几何图形、图标、雷达图、数据波形或动态线条。
-     3. **场景总结包装**：利用 `backdrop-filter` 创造具有纵深感的毛玻璃容器，在其中排版展示字幕内容的要点总结。
-   - **视觉层次**：无论有无素材，画面都必须包含：1. 背景层（渐变/粒子）；2. 内容层（图片/SVG/关键词）；3. 字幕层。
+5. 【视频资产 (Video) 播放逻辑】：
+   - **【必须】常驻渲染**：视频组件必须始终挂载在顶层，不得随字幕切换而卸载。
+   - **【必须】使用 loop 循环播放**：建议使用 `@remotion/media` 的 `<Video />` 组件并设置 `loop` 属性。
+   - **【必须】使用 opacity 控制显隐**：通过 `style={{ opacity: (frame >= startFrame && frame < endFrame) ? 1 : 0 }}` 来控制视频在哪个时间段可见。
+   - **尺寸规范**：固定为 **{{WIDTH}}x{{HEIGHT}}**，显式传入 `width={{WIDTH}}` 和 `height={{HEIGHT}}`（必须是数字类型）。
+   - **静音播放**：必须包含 `muted` 和 `volume={0}` 属性。
 
-7. 【极致的美学与视觉张力（极度重要）】：拒绝平庸呆板的 PPT 式画面！你必须运用现代 Web UI/运动图形（Motion Graphics）的设计理念，实现令人惊艳的视觉张力：
-   - 动态排版 (Kinetic Typography)：使用夸张的超大字体、极强的粗细对比、错落的网格排版，善用渐变文字色和遮罩。
-   - 张力动效 (Tension Motion)：所有元素的进出场必须使用 `spring` 动画，赋予元素生动的物理弹性（调节 `damping`, `stiffness`）。可以叠加使用缩放 (scale)、3D旋转 (rotateX/Y)、弹性抖动。绝对不要只用死板的线性移动。
-   - 质感与层次 (Depth & Texture)：运用深色模式、弥散光影（`radial-gradient`）、毛玻璃效果（`backdrop-filter: blur`）、高对比度高饱和度的赛博风格色彩点缀。
-   - 镜头感 (Camera Movement)：利用最外层容器的 `scale` 或 `translate` 的长时间 `interpolate` 缓动插值，营造画面的呼吸感和推拉镜头的电影感。
-   - 丰富背景与元素切换 (Dynamic Background & Elements)：拒绝单一纯色背景！必须使用以下至少两种技术填充画面空间：
-     - **粒子/浮动元素**：使用 `useMemo` 预生成随机位置的圆点、线条、几何图形，用 `interpolate`驱动其漂浮或旋转。
-     - **渐变光晕**：多层 `radial-gradient` 或 `linear-gradient` 叠加，颜色随时间用 `interpolate` 缓慢切换。
-     - **关键词弹出动画**：从 `props.captions` 中提取关键词，用 `spring` 动画在画面的不同区域弹出并消散，形成动态文字墙效果。
-     - **几何形状层**：使用绝对定位的圆形、矩形、三角形（SVG 或 div），用 `spring` 或 `interpolate` 驱动其位移、旋转、缩放。
-8. 【{{ASPECT_RATIO}} 视频美学、边界安全与字幕安全（强制要求）】：
-   - 视频尺寸固定为 **{{WIDTH}}x{{HEIGHT}} ({{ORIENTATION}})**。你必须按照该比例思维进行排版，避免元素过于拥挤或过于分散。
-   - **根容器必须设置裁剪**：组件最外层的容器必须设置 `overflow: 'hidden'`，防止任何子元素渲染到视频画面以外。
-   - **字幕安全区域**：所有文字必须显示在屏幕内，严禁超出边界。保持左右至少 `80px` 的内边距，文字容器宽度不超过 `{{WIDTH}} - 160px`。
-   - 推荐布局：{{SUBTITLE_PLACEMENT}}。
-   - 适配性：对于长句子，必须实现自动换行（如使用 `flexWrap: 'wrap'` 或限制 `maxWidth`）或动态缩小字号，确保在屏幕上完整呈现。
-9. 【字幕渲染（必须执行）】：你必须遍历 `props.captions` 数组，为每一句旁白渲染对应的文本组件。可以使用 `captions.map` 结合 `Sequence` 或者根据当前帧动态计算显示哪条字幕。字幕必须清晰可见（使用对比度强的颜色或文字阴影/背景）。建议为字幕添加简单的进场动效（如：从底部滑入、透明度淡入）。
+6. 【内容渲染规则（素材与创意平衡）】：
+   - **优先使用素材图片/视频**：如果 `caption.image_url` 不为空，**必须**将其作为核心视觉元素展示。
+   - **缩小以保证完整可见**：为了确保素材不被裁剪，**严禁使用 scale(1.1) 等放大效果**。你必须将资产缩小到 **0.8 - 0.9** 之间（例如 `transform: 'scale(0.85)'`），并放置在精致的背景之上。
+   - **【强制】无素材场景的视觉补偿**：如果 `caption.image_url` 为空 or 不可用，**严禁**显示空画面。你必须：
+     1. **关键词驱动视觉化**：从 `caption.text` 中提取关键词，使用超大字体（Kinetic Typography）作为视觉主体。
+     2. **创意 SVG 绘图/动画**：使用 React + SVG 绘制与主题相关的几何图形、图标、动态线条。
+     3. **场景总结包装**：利用 `backdrop-filter` 创造具有纵深感的毛玻璃容器，排版展示字幕要点。
+
+7. 【极致的美学与视觉张力（极度重要）】：拒绝平庸！实现令人惊惊艳的视觉张力：
+   - **动态排版 (Kinetic Typography)**：使用夸张的超大字体、极强的粗细对比、渐变文字色和遮罩。
+   - **张力动效 (Tension Motion)**：所有元素进出场必须使用 `spring` 动画。绝对不要只用线性移动。
+   - **质感与层次 (Depth & Texture)**：运用深色模式、弥散光影（radial-gradient）、毛玻璃效果（backdrop-filter: blur）。
+   - **镜头感 (Camera Movement)**：利用外层容器的缓慢 `interpolate` 缓动插值，营造画面的呼吸感。
+
+8. 【{{ASPECT_RATIO}} 视频美学与边界安全】：
+   - 视频尺寸固定为 **{{WIDTH}}x{{HEIGHT}} ({{ORIENTATION}})**。
+   - **字幕安全区域**：保持左右至少 `80px` 内边距，推荐布局：{{SUBTITLE_PLACEMENT}}。
+   - **适配性**：长句子必须实现自动换行，确保在屏幕上完整呈现。
+
+9. 【字幕渲染（必须执行）】：
+   - 你必须遍历 `props.captions` 数组。字幕必须清晰可见（使用对比度强的颜色或文字阴影）。建议为字幕添加简单的 `spring` 进场动效。
+
 10. 【Remotion API 正确用法（避免常见错误）】：
-   - **`useVideoConfig()` 的位置**：必须在组件函数体顶层调用（不能在条件语句或嵌套函数里），并解构出 `fps`：`const { fps, durationInFrames } = useVideoConfig();`
-   - **`spring()` 的正确签名**：`spring({ frame, fps, config: { damping, stiffness } })`。`fps` 必须是数字，**必须**从 `useVideoConfig()` 中取得，不可省略或传入 `undefined`。
-   - **`useCurrentFrame()` 的位置**：同样必须在组件顶层调用，不能在循环或回调中使用。
-   - **`interpolate()` 的 `inputRange` 必须严格单调递增且全为有效数字**：
-     - **单调递增**：`inputRange` 数组中的每个值必须严格大于前一个值，不能相等也不能倒序（如 `[0,12,-11,1]` 中 `-11 < 12` 就会崩溃）。常见触发原因：帧数计算顺序错误，或字幕 `startMs/endMs` 直接用了原始值而未排序。
-   - **`interpolate()` 的 `outputRange` 不能为空或包含 undefined**：
-     - **错误消息**：`Error: outputRange can not be undefined` 或 `outputRange must contain only numbers`。
-     - **触发原因**：当你根据 `props` 中的某些值动态计算 `outputRange` 时，如果计算逻辑返回了 `undefined`（例如：`COLORS[caption.style]`，但该 style 不在 COLORS 中），就会导致此错误。
-     - **正确做法**：**永远**为 `outputRange` 提供回退默认值。例如：`const color = COLORS[c.style] || '#ffffff';`，并确保映射表是完备的。
-   - **DynamicScene 组件内严禁渲染任何音频**：TTS 旁白音频和背景音乐（BGM）已由外层 Wrapper 组件统一负责播放，你的组件**绝对不能**再添加任何 `<Audio>` 组件或 `new Audio()` 调用。否则会因为路径解析错误（`staticFile()` 只解析 Remotion 内部服务的资源，而非 FastAPI 的音频文件）导致 404 报错，且会与 Wrapper 中的音频产生冲突。你的 DynamicScene 组件只负责视觉渲染，不处理任何音频。
+    - **`useVideoConfig()` 的位置**：必须在组件函数体顶层调用，解构出 `fps`：`const { fps, durationInFrames } = useVideoConfig();`
+    - **`spring()` 的正确签名**：`spring({ frame, fps, config: { damping, stiffness } })`。`fps` 必须从 `useVideoConfig()` 中取得。
+    - **`useCurrentFrame()` 的位置**：必须在组件顶层调用。
+    - **`interpolate()` 的 `inputRange` 必须严格单调递增**：
+      - **致命错误警告**：`Error: inputRange must be strictly monotonically increasing`。
+      - **原因**：值必须从小到大（如 `[0, 10, 20]`），不能相等或减小（如 `[0, 30, 16]` 会崩溃）。
+      - **解决**：确保帧数计算逻辑正确，或对数组进行排序。
+    - **`interpolate()` 的 `outputRange` 严禁 undefined**：
+      - **错误消息**：`Error: outputRange can not be undefined`。
+      - **原因**：动态计算时返回了 `undefined`。
+      - **正确做法**：**永远**为 `outputRange` 提供回退默认值。
+    - **DynamicScene 组件内严禁渲染任何音频**：TTS 旁白和 BGM 由外层统一处理。你**绝对不能**添加 `<Audio>` 组件或 `new Audio()` 调用，否则会因为路径解析错误导致 404 报错。
