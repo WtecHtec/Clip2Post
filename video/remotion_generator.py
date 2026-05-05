@@ -3,7 +3,7 @@ import re
 import uuid
 import json
 import time
-from typing import Optional
+from typing import Optional, List, Dict
 from pathlib import Path
 from .llm_provider import LLMProvider, get_llm_provider
 from .remotion_renderer import RemotionRenderer
@@ -78,7 +78,7 @@ class RemotionGenerator:
             except Exception:
                 pass
 
-    def generate_and_render(self, user_intent: str, props: dict, output_path: str, duration_frames: int = 300, max_retries: int = 3, log_dir: Optional[str] = None, aspect_ratio: str = "9:16") -> str:
+    def generate_and_render(self, user_intent: str, props: dict, output_path: str, duration_frames: int = 300, max_retries: int = 3, log_dir: Optional[str] = None, aspect_ratio: str = "9:16", messages: Optional[List[Dict[str, str]]] = None) -> str:
         """
         Generates a dynamic Remotion component based on user intent, and attempts to render it.
         Includes a retry mechanism for syntax or rendering errors.
@@ -97,28 +97,31 @@ class RemotionGenerator:
             for caption in props["captions"]:
                 if "text" in caption:
                     caption["text"] = clean_text(caption["text"])
-        prompt_path = Path(__file__).parent / "prompts" / "remotion_developer.txt"
-        with open(prompt_path, "r", encoding="utf-8") as f:
-            system_prompt = f.read()
-        
-        # Inject aspect ratio into prompt via placeholders
+
         width, height = (1080, 1920) if aspect_ratio == "9:16" else (1920, 1080)
-        orientation = "Portrait / 竖屏" if aspect_ratio == "9:16" else "Landscape / 横屏"
-        subtitle_placement = (
-            "字幕应放置在屏幕**中下部（高度 70%-85% 处）**或**正中央**"
-            if aspect_ratio == "9:16"
-            else "字幕应放置在屏幕**底部（高度 80%-90% 处）**，或采用左右分栏布局"
-        )
-        system_prompt = (system_prompt
-            .replace("{{ASPECT_RATIO}}", aspect_ratio)
-            .replace("{{WIDTH}}", str(width))
-            .replace("{{HEIGHT}}", str(height))
-            .replace("{{ORIENTATION}}", orientation)
-            .replace("{{SUBTITLE_PLACEMENT}}", subtitle_placement)
-        )
-        system_prompt += f"\n\nCRITICAL: The video is {aspect_ratio} ({width}x{height}). Design ALL layouts, font sizes, and element positions specifically for this resolution."
         
-        user_prompt = f"""
+        if not messages:
+            prompt_path = Path(__file__).parent / "prompts" / "remotion_developer.txt"
+            with open(prompt_path, "r", encoding="utf-8") as f:
+                system_prompt = f.read()
+            
+            # Inject aspect ratio into prompt via placeholders
+            orientation = "Portrait / 竖屏" if aspect_ratio == "9:16" else "Landscape / 横屏"
+            subtitle_placement = (
+                "字幕应放置在屏幕**中下部（高度 70%-85% 处）**或**正中央**"
+                if aspect_ratio == "9:16"
+                else "字幕应放置在屏幕**底部（高度 80%-90% 处）**，或采用左右分栏布局"
+            )
+            system_prompt = (system_prompt
+                .replace("{{ASPECT_RATIO}}", aspect_ratio)
+                .replace("{{WIDTH}}", str(width))
+                .replace("{{HEIGHT}}", str(height))
+                .replace("{{ORIENTATION}}", orientation)
+                .replace("{{SUBTITLE_PLACEMENT}}", subtitle_placement)
+            )
+            system_prompt += f"\n\nCRITICAL: The video is {aspect_ratio} ({width}x{height}). Design ALL layouts, font sizes, and element positions specifically for this resolution."
+            
+            user_prompt = f"""
 User Intent: {user_intent}
 
 TTS Subtitles & Timings (Use these for Sequence timing):
@@ -130,10 +133,10 @@ Available Props (JSON):
 Please generate the Remotion component that visualizes this intent using the provided props.
 """
 
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
-        ]
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ]
 
         scene_id = f"DynamicScene-{uuid.uuid4().hex[:8]}"
         scene_filename = f"{scene_id}.tsx"

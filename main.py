@@ -1493,6 +1493,78 @@ async def generate_tts_api(
         import traceback
         return JSONResponse(status_code=500, content={"error": f"TTS generation failed: {str(e)}\n{traceback.format_exc()}"})
 
+def process_regeneration_task(task_id: str):
+    """Background task to regenerate a new dynamic video using existing context."""
+    task_manager = TaskManager(task_id=task_id)
+    task_dir = task_manager.get_dir("")
+    user_prompt_dir = task_dir / "user_prompt"
+    
+    try:
+        # 1. Load meta.json
+        meta_path = user_prompt_dir / "meta.json"
+        if not meta_path.exists():
+            raise FileNotFoundError("Task meta.json not found.")
+        with open(meta_path, "r", encoding="utf-8") as f:
+            meta = json.load(f)
+            
+        # 2. Load developer_context.txt (User Intent)
+        dev_context_path = user_prompt_dir / "developer_context.txt"
+        if not dev_context_path.exists():
+            raise FileNotFoundError("Task developer_context.txt not found.")
+        with open(dev_context_path, "r", encoding="utf-8") as f:
+            combined_intent = f.read()
+            
+        # 3. Load remotion_props.json
+        props_path = task_dir / "remotion_props.json"
+        if not props_path.exists():
+            raise FileNotFoundError("Task remotion_props.json not found.")
+        with open(props_path, "r", encoding="utf-8") as f:
+            props = json.load(f)
+
+        task_manager.update_status(0.2, "正在基于上次提示词重新生成代码...", "processing")
+        
+        # 4. Initialize Generator
+        from video.llm_provider import get_llm_provider
+        from video.remotion_generator import RemotionGenerator
+        import time
+        from pathlib import Path
+        
+        provider_name = meta.get("llm_vendor") or os.environ.get("LLM_VENDOR", "mimo")
+        provider = get_llm_provider(provider_name)
+        remotion_dir = Path(__file__).parent / "skills" / "remotion"
+        generator = RemotionGenerator(remotion_dir, provider)
+        
+        # 5. Execute Generation and Render
+        timestamp = time.strftime("%Y%m%d_%H%M%S")
+        video_output = task_dir / "videos" / f"remotion_video_regen_{timestamp}.mp4"
+        
+        task_log_dir = task_dir / "logs"
+        task_log_dir.mkdir(parents=True, exist_ok=True)
+
+        generator.generate_and_render(
+            user_intent=combined_intent,
+            props=props,
+            output_path=str(video_output),
+            max_retries=meta.get("max_retries", 1),
+            aspect_ratio=meta.get("aspect_ratio", "9:16"),
+            log_dir=task_log_dir
+        )
+        
+        task_manager.update_status(1.0, f"重新生成成功！(文件名: {video_output.name})", "completed")
+        
+    except Exception as e:
+        import traceback
+        error_msg = f"再生成失败: {str(e)}\n{traceback.format_exc()}"
+        print(error_msg)
+        task_manager.update_status(0.0, f"失败: {str(e)}", "failed")
+
+
+@app.post("/api/tasks/{task_id}/regenerate_dynamic")
+async def regenerate_dynamic_video(task_id: str, background_tasks: BackgroundTasks):
+    """Endpoint to trigger a new generation based on previous context."""
+    background_tasks.add_task(process_regeneration_task, task_id)
+    return {"message": "Regeneration task started.", "task_id": task_id}
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

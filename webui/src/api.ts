@@ -416,3 +416,15 @@ export const generateDynamicVideo = async (options: DynamicVideoOptions): Promis
   const data = await response.json();
   return data.task_id;
 };
+export const regenerateDynamicVideo = async (taskId: string): Promise<string> => {
+  const response = await fetch(`${API_BASE_URL}/tasks/${taskId}/regenerate_dynamic`, {
+    method: 'POST',
+  });
+
+  if (!response.ok) {
+    throw new Error(`Regeneration failed: ${response.statusText}`);
+  }
+
+  const data = await response.json();
+  return data.task_id;
+};

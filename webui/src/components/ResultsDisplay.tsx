@@ -1,7 +1,7 @@
 import React from 'react';
 import classNames from 'classnames';
 import { FileText, Image as ImageIcon, Layout, Video, Mic, Film, Sparkles, Type } from 'lucide-react';
-import { getAssetUrl } from '../api';
+import { getAssetUrl, regenerateDynamicVideo } from '../api';
 import type { TaskResults } from '../api';
 import { AIVideoCreator } from './AIVideoCreator';
 import type { LLMSettings } from './SettingsPanel';
@@ -214,6 +214,34 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({
 
                 {activeTab === 'videos' && (
                     <div className="video-list">
+                        <div style={{
+                            marginBottom: '1.5rem',
+                            display: 'flex',
+                            justifyContent: 'flex-end'
+                        }}>
+                            <button
+                                className="btn-primary"
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.5rem',
+                                    padding: '0.6rem 1.2rem',
+                                    background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                                    boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)'
+                                }}
+                                onClick={async () => {
+                                    try {
+                                        const id = await regenerateDynamicVideo(taskId);
+                                        onTaskCreated(id);
+                                    } catch (err) {
+                                        alert('Regeneration failed: ' + err);
+                                    }
+                                }}
+                            >
+                                <Sparkles size={16} />
+                                再生成一个视频 (Regenerate Another)
+                            </button>
+                        </div>
                         {results.video_clips && results.video_clips.length > 0 ? (
                             results.video_clips.map((clip, i) => (
                                 <div key={i} className="video-clip-item" style={{
