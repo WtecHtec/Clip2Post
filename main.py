@@ -334,6 +334,8 @@ def process_dynamic_video_pipeline(
         task_manager.update_status(0.3, f"正在进行语音合成 ({tts_engine})...", "processing")
         
         voiceover_text = " ".join([s.get("text", "") for s in scenes])
+        # 优化语音合成：将“1.2”转换为“1点2”，确保 TTS 正确读出“点”
+        voiceover_text = re.sub(r'(\d)\.(\d)', r'\1点\2', voiceover_text)
         task_dir = task_manager.get_dir("")
         output_base = task_dir / "audio" / "tts_output"
         output_base.parent.mkdir(parents=True, exist_ok=True)
@@ -365,7 +367,10 @@ def process_dynamic_video_pipeline(
         
         for c in captions:
             if "text" in c:
-                c["text"] = re.sub(r'\[.*?\]\s*', '', c["text"]).strip()
+                text = re.sub(r'\[.*?\]\s*', '', c["text"]).strip()
+                # 优化数字格式：将“66点2”转换为“66.2”用于字幕展示
+                c["text"] = re.sub(r'(\d)点(\d)', r'\1.\2', text)
+                
                 scene = scenes[current_scene_idx] if current_scene_idx < len(scenes) else scenes[-1]
                 
                 asset_url = scene.get("image_url") or scene.get("video_url") or ""
