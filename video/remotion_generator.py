@@ -90,7 +90,7 @@ class RemotionGenerator:
         import re
         def clean_text(text):
             # Remove: , . ! ? ; : ( ) [ ] { } " ' and Chinese equivalents
-            punctuation_pattern = r'[，。！？；：“”‘’（）【】\[\]\(\)\{\}\.,!?;:\"\'\-]'
+            punctuation_pattern = r'[，。！？；：“”‘’（）【】\[\]\(\)\{\},!?;:\"\'\-]'
             return re.sub(punctuation_pattern, '', text).strip()
             
         if "captions" in props:

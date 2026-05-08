@@ -367,10 +367,12 @@ def process_dynamic_video_pipeline(
         
         for c in captions:
             if "text" in c:
-                text = re.sub(r'\[.*?\]\s*', '', c["text"]).strip()
+                # text = re.sub(r'\[.*?\]\s*', '', c["text"]).strip()
+        
+                text = c["text"]
                 # 优化数字格式：将“66点2”转换为“66.2”用于字幕展示
                 c["text"] = re.sub(r'(\d)点(\d)', r'\1.\2', text)
-                
+        
                 scene = scenes[current_scene_idx] if current_scene_idx < len(scenes) else scenes[-1]
                 
                 asset_url = scene.get("image_url") or scene.get("video_url") or ""
