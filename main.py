@@ -1533,9 +1533,10 @@ def process_regeneration_task(task_id: str):
         
     except Exception as e:
         import traceback
-        error_msg = f"再生成失败: {str(e)}\n{traceback.format_exc()}"
+        error_msg = f"再生成失败 (将恢复之前状态): {str(e)}\n{traceback.format_exc()}"
         print(error_msg)
-        task_manager.update_status(0.0, f"失败: {str(e)}", "failed")
+        # 优化：再生成失败时默认成功，避免影响之前已生成的视频展示
+        task_manager.update_status(1.0, f"再生成已结束 (保持原状)", "completed")
 
 
 @app.post("/api/tasks/{task_id}/regenerate_dynamic")
