@@ -1,5 +1,6 @@
 import os
 import json
+import requests
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional
 from openai import OpenAI
@@ -137,10 +138,10 @@ class DirectProvider(LLMProvider):
         request_args = {
             "model": self.model,
             "messages": messages,
-            "max_completion_tokens": kwargs.get("max_completion_tokens", 16384),
-            "temperature": kwargs.get("temperature", 0.7),
-            "top_p": kwargs.get("top_p", 0.95),
-            "stream": False,
+            # "max_completion_tokens": kwargs.get("max_completion_tokens", 16384),
+            # "temperature": kwargs.get("temperature", 0.7),
+            # "top_p": kwargs.get("top_p", 0.95),
+            # "stream": False,
         }
         
         # Override with any explicit kwargs provided
@@ -157,6 +158,55 @@ class DirectProvider(LLMProvider):
             print(f"Error during Direct LLM API call: {e}")
             raise e
 
+class CurlProvider(LLMProvider):
+    """A provider that uses requests to manually hit the LLM API endpoint."""
+    def __init__(self, api_key: Optional[str] = None, base_url: Optional[str] = None, model: Optional[str] = None):
+        self.api_key = api_key or os.environ.get("LLM_API_KEY")
+        self.base_url = base_url or os.environ.get("LLM_BASE_URL")
+        self.model = model or os.environ.get("LLM_MODEL", "gpt-4o")
+        
+        if not self.api_key:
+            raise ValueError("LLM_API_KEY environment variable is not set for Curl mode.")
+        if not self.base_url:
+            raise ValueError("LLM_BASE_URL environment variable is not set for Curl mode.")
+            
+        # Ensure the URL points to the completions endpoint if it's just a base URL
+        if not self.base_url.endswith("/chat/completions"):
+            self.endpoint = f"{self.base_url.rstrip('/')}/chat/completions"
+        else:
+            self.endpoint = self.base_url
+
+    def generate(self, messages: List[Dict[str, str]], log_dir: Optional[str] = None, **kwargs) -> str:
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        }
+        
+        data = {
+            "model": self.model,
+            "messages": messages
+        }
+        
+        # Override with any explicit kwargs provided
+        for k, v in kwargs.items():
+            if k not in ["log_dir"]:
+                data[k] = v
+                
+        try:
+            response = requests.post(self.endpoint, headers=headers, json=data, timeout=120)
+            response.raise_for_status()  # Raise an exception for bad status codes
+            
+            resp_json = response.json()
+            content = resp_json["choices"][0]["message"]["content"]
+            self._log_interaction(data, content, log_dir)
+            return content
+        except Exception as e:
+            print(f"Error during Curl LLM API call: {e}")
+            if hasattr(e, 'response') and getattr(e, 'response') is not None:
+                print(f"Response details: {e.response.text}")
+            raise e
+
 # Factory or simple registry for providers can be added here if needed
 def get_llm_provider(provider_name: Optional[str] = None, **kwargs) -> LLMProvider:
     if provider_name is None:
@@ -169,5 +219,7 @@ def get_llm_provider(provider_name: Optional[str] = None, **kwargs) -> LLMProvid
         return MinimaxProvider(**kwargs)
     elif name == "direct":
         return DirectProvider(**kwargs)
+    elif name == "curl":
+        return CurlProvider(**kwargs)
     else:
         raise ValueError(f"Unsupported LLM provider: {provider_name}")
