@@ -221,5 +221,8 @@ def get_llm_provider(provider_name: Optional[str] = None, **kwargs) -> LLMProvid
         return DirectProvider(**kwargs)
     elif name == "curl":
         return CurlProvider(**kwargs)
+    elif name == "curlstream":
+        from video.llm_provider_dsl import StreamingCurlProvider
+        return StreamingCurlProvider(**kwargs)
     else:
         raise ValueError(f"Unsupported LLM provider: {provider_name}")

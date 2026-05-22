@@ -6,7 +6,7 @@ const WrapperComponent = (props: any) => {
     return (
         <AbsoluteFill style={{ overflow: 'hidden', width: 1920, height: 1080 }}>
             {props.audioUrl && <Audio src={props.audioUrl} />}
-            {props.bgm && <Audio src={props.bgm.startsWith('http') ? props.bgm : `http://localhost:8000/bgm/${props.bgm}`} volume={0.15} />}
+            {props.bgm && <Audio src={props.bgm.startsWith('http') ? props.bgm : `127.0.0.1:8000/bgm/${props.bgm}`} volume={0.15} />}
             <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', overflow: 'hidden' }}>
                 <DynamicComponent {...props} />
             </div>

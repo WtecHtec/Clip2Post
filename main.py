@@ -39,7 +39,7 @@ app.add_middleware(
 # Mount tasks directory for static file access (images, html)
 app.mount("/tasks", StaticFiles(directory=str(TASKS_DIR)), name="tasks")
 
-# Mount bgm directory so Remotion can download BGM via http://localhost:8000/bgm/
+# Mount bgm directory so Remotion can download BGM via 127.0.0.1:8000/bgm/
 _BGM_DIR = Path(__file__).parent / "bgm"
 _BGM_DIR.mkdir(exist_ok=True)
 app.mount("/bgm", StaticFiles(directory=str(_BGM_DIR)), name="bgm")
@@ -398,7 +398,13 @@ def process_dynamic_video_pipeline(
                         current_scene_text_accum = ""
 
         # 3. Code Generation and Rendering
-        generator = RemotionGenerator(Path(__file__).parent / "skills" / "remotion", provider)
+        gen_mode = os.environ.get("REMOTION_GEN_MODE", "chunkdiff").lower()
+        if gen_mode in ("chunkdiff", "dsl"):
+            from video.remotion_generator_dsl import RemotionGeneratorDSL
+            generator = RemotionGeneratorDSL(Path(__file__).parent / "skills" / "remotion", provider, mode="dsl")
+        else:
+            from video.remotion_generator import RemotionGenerator
+            generator = RemotionGenerator(Path(__file__).parent / "skills" / "remotion", provider)
         output_path = task_manager.get_dir("videos") / "remotion_video.mp4"
         
         # Calculate duration
@@ -407,7 +413,7 @@ def process_dynamic_video_pipeline(
 
         props = {
             "captions": captions,
-            "audioUrl": f"http://localhost:8000/tasks/{task_id}/audio/{Path(audio_path).name}",
+            "audioUrl": f"http://127.0.0.1:8000/tasks/{task_id}/audio/{Path(audio_path).name}",
             "visual_style": visual_style,
             "aspect_ratio": aspect_ratio
         }
@@ -416,7 +422,7 @@ def process_dynamic_video_pipeline(
             if bgm.startswith("http"):
                 props["bgm"] = bgm
             else:
-                props["bgm"] = f"http://localhost:8000/bgm/{bgm}"
+                props["bgm"] = f"http://127.0.0.1:8000/bgm/{bgm}"
 
         # Combine user prompt, visual style and scene suggestions for the developer agent
         scene_guidelines = "\n".join([f"Scene {i+1}: {s.get('visual')}" for i, s in enumerate(scenes)])
@@ -1284,7 +1290,7 @@ async def generate_dynamic_video(
                 shutil.copyfileobj(file.file, f)
             
             # Construct URL
-            asset_url = f"http://localhost:8000/tasks/{task_id}/assets/{file.filename}"
+            asset_url = f"http://127.0.0.1:8000/tasks/{task_id}/assets/{file.filename}"
             
             # Identify type
             ext = Path(file.filename).suffix.lower()
@@ -1503,14 +1509,20 @@ def process_regeneration_task(task_id: str):
         
         # 5. Initialize Generator
         from video.llm_provider import get_llm_provider
-        from video.remotion_generator import RemotionGenerator
         import time
         from pathlib import Path
         
         provider_name = meta.get("llm_vendor") or os.environ.get("LLM_VENDOR", "mimo")
         provider = get_llm_provider(provider_name)
         remotion_dir = Path(__file__).parent / "skills" / "remotion"
-        generator = RemotionGenerator(remotion_dir, provider)
+        
+        gen_mode = os.environ.get("REMOTION_GEN_MODE", "chunkdiff").lower()
+        if gen_mode in ("chunkdiff", "dsl"):
+            from video.remotion_generator_dsl import RemotionGeneratorDSL
+            generator = RemotionGeneratorDSL(remotion_dir, provider, mode="dsl")
+        else:
+            from video.remotion_generator import RemotionGenerator
+            generator = RemotionGenerator(remotion_dir, provider)
         
         # 6. Execute Generation and Render
         timestamp = time.strftime("%Y%m%d_%H%M%S")
