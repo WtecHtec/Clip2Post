@@ -398,7 +398,7 @@ def process_dynamic_video_pipeline(
                         current_scene_text_accum = ""
 
         # 3. Code Generation and Rendering
-        gen_mode = os.environ.get("REMOTION_GEN_MODE", "chunkdiff").lower()
+        gen_mode = os.environ.get("REMOTION_GEN_MODE", "overwrite").lower()
         if gen_mode in ("chunkdiff", "dsl"):
             from video.remotion_generator_dsl import RemotionGeneratorDSL
             generator = RemotionGeneratorDSL(Path(__file__).parent / "skills" / "remotion", provider, mode="dsl")
@@ -1516,7 +1516,7 @@ def process_regeneration_task(task_id: str):
         provider = get_llm_provider(provider_name)
         remotion_dir = Path(__file__).parent / "skills" / "remotion"
         
-        gen_mode = os.environ.get("REMOTION_GEN_MODE", "chunkdiff").lower()
+        gen_mode = os.environ.get("REMOTION_GEN_MODE", "overwrite").lower()
         if gen_mode in ("chunkdiff", "dsl"):
             from video.remotion_generator_dsl import RemotionGeneratorDSL
             generator = RemotionGeneratorDSL(remotion_dir, provider, mode="dsl")

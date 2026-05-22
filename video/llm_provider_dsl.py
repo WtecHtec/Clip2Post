@@ -5,7 +5,7 @@ import sys
 import time
 from pathlib import Path
 from typing import List, Dict, Any, Optional
-from .llm_provider import LLMProvider
+from .llm_provider import LLMProvider, format_detailed_error
 
 class StreamingCurlProvider(LLMProvider):
     """
@@ -68,6 +68,10 @@ class StreamingCurlProvider(LLMProvider):
                         
                     try:
                         chunk_json = json.loads(data_str)
+                        if "error" in chunk_json:
+                            error_msg = chunk_json["error"].get("message", "Unknown API error")
+                            raise ValueError(f"LLM Stream Error: {error_msg}")
+                            
                         choices = chunk_json.get("choices", [])
                         if choices:
                             delta = choices[0].get("delta", {})
@@ -77,7 +81,9 @@ class StreamingCurlProvider(LLMProvider):
                                 # Stream print chunk to console immediately
                                 sys.stdout.write(content_chunk)
                                 sys.stdout.flush()
-                    except Exception:
+                    except Exception as inner_e:
+                        if isinstance(inner_e, ValueError) and "LLM Stream Error" in str(inner_e):
+                            raise inner_e
                         pass
             
             print() # Insert a final newline after streaming is done
@@ -86,7 +92,8 @@ class StreamingCurlProvider(LLMProvider):
             return accumulated_response
             
         except Exception as e:
-            print(f"\nError during Streaming Curl LLM API call: {e}")
+            detailed_msg = format_detailed_error(e)
+            print(f"\nError during Streaming Curl LLM API call: {detailed_msg}")
             if hasattr(e, 'response') and getattr(e, 'response') is not None:
                 print(f"Response details: {e.response.text}")
-            raise e
+            raise RuntimeError(f"Streaming Curl LLM API call failed: {detailed_msg}") from e

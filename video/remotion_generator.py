@@ -180,6 +180,7 @@ Please generate the Remotion component that visualizes this intent using the pro
                 response = self.llm_provider.generate(messages, log_dir=log_dir, max_completion_tokens=16384)
             except Exception as e:
                 print(f"      LLM Generation failed: {e}")
+                current_error = str(e)
                 time.sleep(2)
                 continue
 

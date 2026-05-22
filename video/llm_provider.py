@@ -10,6 +10,24 @@ from pathlib import Path
 
 load_dotenv()
 
+def format_detailed_error(e: Exception) -> str:
+    """Helper to extract detailed message from nested/chained exceptions (e.g. connection errors)."""
+    parts = [f"{type(e).__name__}: {str(e)}"]
+    curr = e
+    visited = set()
+    while True:
+        if curr in visited:
+            break
+        visited.add(curr)
+        
+        next_err = getattr(curr, "__cause__", None) or getattr(curr, "__context__", None)
+        if next_err:
+            parts.append(f"-> {type(next_err).__name__}: {str(next_err)}")
+            curr = next_err
+        else:
+            break
+    return " | ".join(parts)
+
 class LLMProvider(ABC):
     @abstractmethod
     def generate(self, messages: List[Dict[str, str]], log_dir: Optional[str] = None, **kwargs) -> str:
@@ -79,8 +97,9 @@ class MiMoProvider(LLMProvider):
             self._log_interaction(request_args, content, log_dir)
             return content
         except Exception as e:
-            print(f"Error during MiMo API call: {e}")
-            raise e
+            detailed_msg = format_detailed_error(e)
+            print(f"Error during MiMo API call: {detailed_msg}")
+            raise RuntimeError(f"MiMo API call failed: {detailed_msg}") from e
 
 class MinimaxProvider(LLMProvider):
     def __init__(self, api_key: Optional[str] = None, model: str = "MiniMax-M2.7"):
@@ -114,8 +133,9 @@ class MinimaxProvider(LLMProvider):
             self._log_interaction(request_args, content, log_dir)
             return content
         except Exception as e:
-            print(f"Error during Minimax API call: {e}")
-            raise e
+            detailed_msg = format_detailed_error(e)
+            print(f"Error during Minimax API call: {detailed_msg}")
+            raise RuntimeError(f"Minimax API call failed: {detailed_msg}") from e
 
 class DirectProvider(LLMProvider):
     """A provider that directly uses LLM_API_KEY, LLM_BASE_URL, and LLM_MODEL from environment."""
@@ -155,8 +175,9 @@ class DirectProvider(LLMProvider):
             self._log_interaction(request_args, content, log_dir)
             return content
         except Exception as e:
-            print(f"Error during Direct LLM API call: {e}")
-            raise e
+            detailed_msg = format_detailed_error(e)
+            print(f"Error during Direct LLM API call: {detailed_msg}")
+            raise RuntimeError(f"Direct LLM API call failed: {detailed_msg}") from e
 
 class CurlProvider(LLMProvider):
     """A provider that uses requests to manually hit the LLM API endpoint."""
@@ -202,10 +223,11 @@ class CurlProvider(LLMProvider):
             self._log_interaction(data, content, log_dir)
             return content
         except Exception as e:
-            print(f"Error during Curl LLM API call: {e}")
+            detailed_msg = format_detailed_error(e)
+            print(f"Error during Curl LLM API call: {detailed_msg}")
             if hasattr(e, 'response') and getattr(e, 'response') is not None:
                 print(f"Response details: {e.response.text}")
-            raise e
+            raise RuntimeError(f"Curl LLM API call failed: {detailed_msg}") from e
 
 # Factory or simple registry for providers can be added here if needed
 def get_llm_provider(provider_name: Optional[str] = None, **kwargs) -> LLMProvider:

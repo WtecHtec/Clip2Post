@@ -605,6 +605,7 @@ Please generate the Remotion component. Output the full valid TSX code file wrap
                     response = self.llm_provider.generate(messages, log_dir=log_dir, max_completion_tokens=16384)
                 except Exception as e:
                     print(f"      LLM Generation failed: {e}")
+                    current_error = str(e)
                     time.sleep(2)
                     continue
 
