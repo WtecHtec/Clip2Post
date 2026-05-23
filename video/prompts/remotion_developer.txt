@@ -131,12 +131,17 @@
      const frame = useCurrentFrame();
      const msToFrame = (ms: number) => Math.round((ms ?? 0) / 1000 * fps);
 
-     // 根据全局 frame 确定当前应该显示哪个场景的 SVG/图效 UI
-     const currentCaption = props.captions.find((c: any) => {
-       const start = msToFrame(c.startMs);
-       const end = msToFrame(c.endMs);
-       return frame >= start && frame < end;
-     });
+     // 寻找当前帧所对应的活动字幕（采用向下填充/Forward Fill策略，防止字幕或场景切换时的微小空隙导致画面闪烁）
+     const currentCaption = useMemo(() => {
+       if (!props.captions || props.captions.length === 0) return null;
+       let active = props.captions[0];
+       for (const cap of props.captions) {
+         if (frame >= msToFrame(cap.startMs)) {
+           active = cap;
+         }
+       }
+       return active;
+     }, [props.captions, frame, fps]);
      const activeSceneType = currentCaption?.sceneType || 'default';
 
      return (
@@ -208,4 +213,8 @@
       - **错误消息**：`Error: outputRange can not be undefined`。
       - **原因**：动态计算时返回了 `undefined`。
       - **正确做法**：**永远**为 `outputRange` 提供回退默认值。
+    - **防止切换/转场时的结尾场景闪烁（致命视觉 Bug）**：
+      - **错误现象**：在切换视频场景/字幕时，或者在视频帧由于浮点数计算出现 1 帧的空白空隙时，突然闪现一下结尾场景（Ending Scene）的内容。
+      - **原因**：AI 编写寻址当前字幕逻辑时，如果在没有找到匹配项（例如 `find()` 返回 `undefined` 或索引为 `-1`）时，错误地默认返回了最后一条字幕（如 `props.captions[props.captions.length - 1]` 或 `|| props.captions[length-1]`），导致所有微小空隙都被强制判定为“结尾场景”。
+      - **规范**：寻找当前字幕必须使用上方代码范式中的 **向下填充（Forward Fill）** 策略，即在两个字幕的空隙中继续维持前一个字幕的状态，直到下一个字幕被激活，绝对不能使用 `|| props.captions[props.captions.length - 1]` 等生硬的 fallback 兜底。
     - **DynamicScene 组件内严禁渲染任何音频**：TTS 旁白和 BGM 由外层统一处理。你**绝对不能**添加 `<Audio>` 组件或 `new Audio()` 调用，否则会因为路径解析错误导致 404 报错。
