@@ -372,6 +372,7 @@ export interface DynamicVideoOptions {
   files?: File[];
   imageDescriptions?: string;
   maxRetries?: number;
+  mode?: 'prompt' | 'json';
 }
 
 export const generateDynamicVideo = async (options: DynamicVideoOptions): Promise<string> => {
@@ -379,6 +380,7 @@ export const generateDynamicVideo = async (options: DynamicVideoOptions): Promis
   formData.append('prompt', options.prompt);
   formData.append('tts_engine', options.ttsEngine);
   formData.append('voice', options.voice);
+  if (options.mode) formData.append('mode', options.mode);
   if (options.temperature !== undefined) formData.append('temperature', String(options.temperature));
   if (options.top_p !== undefined) formData.append('top_p', String(options.top_p));
   if (options.top_k !== undefined) formData.append('top_k', String(options.top_k));

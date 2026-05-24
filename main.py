@@ -259,6 +259,7 @@ def process_dynamic_video_pipeline(
     prompt: str,
     tts_engine: str = "edge",
     voice: str = "",
+    mode: str = "prompt",
     temperature: float = 0.7,
     top_p: float = 0.7,
     top_k: int = 20,
@@ -272,6 +273,97 @@ def process_dynamic_video_pipeline(
     """Background task for LLM Dynamic Template Video generation."""
     task_manager = TaskManager(task_id=task_id)
     try:
+        if mode == "json":
+            # 1. Parse JSON
+            import json, re
+            from pathlib import Path
+            try:
+                template_props = json.loads(prompt)
+            except Exception as e:
+                raise ValueError(f"Failed to parse prompt as JSON: {e}")
+
+            # 2. TTS Generation on template_props.get("captions")
+            voiceover_text = template_props.get("captions") or template_props.get("bodyText") or template_props.get("title") or "No narration content"
+            voiceover_text = re.sub(r'([a-zA-Z0-9])\.([a-zA-Z0-9])', r'\1点\2', voiceover_text)
+            
+            task_manager.update_status(0.3, f"正在进行语音合成 ({tts_engine})...", "processing")
+            task_dir = task_manager.get_dir("")
+            output_base = task_dir / "audio" / "tts_output"
+            output_base.parent.mkdir(parents=True, exist_ok=True)
+            
+            if tts_engine == "chattts":
+                from tts.chattts_processor import run_chattts_sync
+                audio_path, json_path = run_chattts_sync(
+                    voiceover_text, str(output_base), voice=voice,
+                    temperature=temperature, top_p=top_p, top_k=top_k, 
+                    speed=speed, refine_text_flag=refine_text
+                )
+            elif tts_engine == "omnivoice":
+                from tts.omnivoice_processor import run_omnivoice_tts_sync
+                audio_path, json_path = run_omnivoice_tts_sync(voiceover_text, str(output_base), voice_instruct=voice)
+            elif tts_engine == "kokoro":
+                from tts.kokoro_processor import run_kokoro_tts_sync
+                voice_k = voice or "af_heart"
+                audio_path, json_path = run_kokoro_tts_sync(voiceover_text, str(output_base), voice=voice_k)
+            else:
+                voice_e = voice or "zh-CN-XiaoxiaoNeural"
+                from tts.processor import run_tts_sync
+                audio_path, json_path = run_tts_sync(voiceover_text, str(output_base), voice=voice_e)
+
+            # 3. Read captions JSON for duration calculation
+            with open(json_path, 'r', encoding='utf-8') as f:
+                captions_timing = json.load(f)
+            
+            # Map user uploaded assets to images and videos
+            images_list = []
+            videos_list = []
+            if user_assets:
+                for asset in user_assets:
+                    # Construct paths relative to remotion public dir via symlink
+                    asset_rel = f"tasks/{task_id}/assets/{Path(asset['url']).name}"
+                    if asset['type'] == 'video':
+                        videos_list.append(asset_rel)
+                    else:
+                        images_list.append(asset_rel)
+
+            audio_rel_path = f"tasks/{task_id}/audio/{Path(audio_path).name}"
+            
+            # Combine the user template_props with calculated assets and audio
+            props = {
+                **template_props,
+                "audioPath": audio_rel_path,
+                "images": images_list if images_list else template_props.get("images", []),
+                "videos": videos_list if videos_list else template_props.get("videos", []),
+            }
+            if bgm:
+                props["bgmPath"] = bgm
+            
+            # Save props to shuo.json (under task audio folder)
+            audio_dir = task_manager.get_dir("audio")
+            shuo_json_path = audio_dir / "shuo.json"
+            with open(shuo_json_path, 'w', encoding='utf-8') as f:
+                json.dump(props, f, ensure_ascii=False, indent=2)
+
+            # Also save to remotion_props.json for consistency
+            props_path = task_dir / "remotion_props.json"
+            with open(props_path, 'w', encoding='utf-8') as f:
+                json.dump(props, f, ensure_ascii=False, indent=2)
+
+            task_manager.update_status(0.6, "正在合成视频...", "processing")
+            
+            video_output = task_manager.get_dir("videos") / "remotion_video.mp4"
+            total_duration_ms = captions_timing[-1]["endMs"] if captions_timing else 3000
+            
+            # For AITemplate: Outro duration is 2 seconds (60 frames at 30fps)
+            # Add extra buffer of 60 frames for the outro scene + title duration
+            duration_frames = int((total_duration_ms / 1000) * 30) + 60
+            
+            from video.remotion_renderer import run_remotion_render
+            run_remotion_render(shuo_json_path, video_output, duration_frames=duration_frames, composition_id="AITemplate")
+            
+            task_manager.update_status(1.0, "合成成功！", "completed")
+            return
+
         from video.llm_provider import get_llm_provider
         from video.remotion_generator import RemotionGenerator
         provider = get_llm_provider()
@@ -334,8 +426,8 @@ def process_dynamic_video_pipeline(
         task_manager.update_status(0.3, f"正在进行语音合成 ({tts_engine})...", "processing")
         
         voiceover_text = " ".join([s.get("text", "") for s in scenes])
-        # 优化语音合成：将“1.2”转换为“1点2”，确保 TTS 正确读出“点”
-        voiceover_text = re.sub(r'(\d)\.(\d)', r'\1点\2', voiceover_text)
+        # 优化语音合成：将字母、数字之间的“.”转换为“点”，确保 TTS 正确读出
+        voiceover_text = re.sub(r'([a-zA-Z0-9])\.([a-zA-Z0-9])', r'\1点\2', voiceover_text)
         task_dir = task_manager.get_dir("")
         output_base = task_dir / "audio" / "tts_output"
         output_base.parent.mkdir(parents=True, exist_ok=True)
@@ -1250,6 +1342,7 @@ async def generate_dynamic_video(
     prompt: str = Form(...),
     tts_engine: str = Form("edge"),
     voice: str = Form(""),
+    mode: str = Form("prompt"),
     temperature: float = Form(0.3),
     top_p: float = Form(0.7),
     top_k: int = Form(20),
@@ -1309,6 +1402,7 @@ async def generate_dynamic_video(
             "prompt": prompt,
             "tts_engine": tts_engine,
             "voice": voice,
+            "mode": mode,
             "bgm": bgm,
             "aspect_ratio": aspect_ratio,
             "image_descriptions": image_descriptions,
@@ -1328,6 +1422,7 @@ async def generate_dynamic_video(
         prompt=prompt,
         tts_engine=tts_engine,
         voice=voice,
+        mode=mode,
         temperature=temperature,
         top_p=top_p,
         top_k=top_k,
@@ -1486,6 +1581,49 @@ def process_regeneration_task(task_id: str):
         with open(meta_path, "r", encoding="utf-8") as f:
             meta = json.load(f)
             
+        if meta.get("mode") == "json":
+            # Direct JSON re-rendering!
+            task_manager.update_status(0.2, "正在重新合成视频...", "processing")
+            
+            # Read props
+            props_path = task_dir / "remotion_props.json"
+            if not props_path.exists():
+                raise FileNotFoundError("Task remotion_props.json not found.")
+            with open(props_path, "r", encoding="utf-8") as f:
+                props = json.load(f)
+            
+            audio_dir = task_manager.get_dir("audio")
+            shuo_json_path = audio_dir / "shuo.json"
+            
+            with open(shuo_json_path, 'w', encoding='utf-8') as f:
+                json.dump(props, f, ensure_ascii=False, indent=2)
+
+            output_base = task_dir / "audio" / "tts_output"
+            json_path = output_base.with_suffix('.json')
+            
+            if json_path.exists():
+                with open(json_path, 'r', encoding='utf-8') as f:
+                    captions_timing = json.load(f)
+                total_duration_ms = captions_timing[-1]["endMs"] if captions_timing else 3000
+            else:
+                total_duration_ms = 3000
+                
+            duration_frames = int((total_duration_ms / 1000) * 30) + 60
+            
+            import time
+            timestamp = time.strftime("%Y%m%d_%H%M%S")
+            video_output = task_dir / "videos" / f"remotion_video_regen_{timestamp}.mp4"
+            
+            from video.remotion_renderer import run_remotion_render
+            run_remotion_render(shuo_json_path, video_output, duration_frames=duration_frames, composition_id="AITemplate")
+            
+            default_output = task_dir / "videos" / "remotion_video.mp4"
+            import shutil
+            shutil.copy(str(video_output), str(default_output))
+            
+            task_manager.update_status(1.0, f"重新生成成功！(文件名: {video_output.name})", "completed")
+            return
+
         # 2. Load developer_context.txt (User Intent)
         dev_context_path = user_prompt_dir / "developer_context.txt"
         if not dev_context_path.exists():

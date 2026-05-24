@@ -22,6 +22,24 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
         return cached || initialPrompt || '帮我生成一期关于AI和人工智能的视频';
     });
 
+    const [mode, setMode] = useState<'prompt' | 'json'>(() => {
+        return (localStorage.getItem('dynamic-video-mode') as 'prompt' | 'json') || 'prompt';
+    });
+
+    const [jsonPrompt, setJsonPrompt] = useState(() => {
+        const cached = localStorage.getItem('dynamic-video-jsonPrompt');
+        return cached || JSON.stringify({
+            author: '@your_handle',
+            topic: 'AI工具速递',
+            title: '语音AI终于听懂你情绪了',
+            titleHighlight: '听懂',
+            bodyText: '副语言识别 · 百万人格组合 · 中英双语',
+            progressPercent: 45,
+            outroTagline: 'AI · 工具 · 变现',
+            captions: '这里是口播文案，TTS 将会自动把这段文字转化为语音，并合成到 Remotion 视频中。'
+        }, null, 2);
+    });
+
     const [ttsEngine, setTtsEngine] = useState(() => localStorage.getItem('dynamic-video-ttsEngine') || 'edge');
     const [voice, setVoice] = useState(() => localStorage.getItem('dynamic-video-voice') || '');
     const [preset, setPreset] = useState(() => localStorage.getItem('dynamic-video-preset') || 'default');
@@ -40,6 +58,8 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
 
     useEffect(() => {
         localStorage.setItem('dynamic-video-prompt', prompt);
+        localStorage.setItem('dynamic-video-jsonPrompt', jsonPrompt);
+        localStorage.setItem('dynamic-video-mode', mode);
         localStorage.setItem('dynamic-video-ttsEngine', ttsEngine);
         localStorage.setItem('dynamic-video-voice', voice);
         localStorage.setItem('dynamic-video-preset', preset);
@@ -51,7 +71,7 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
         localStorage.setItem('dynamic-video-speed', speed.toString());
         localStorage.setItem('dynamic-video-maxRetries', maxRetries.toString());
         localStorage.setItem('dynamic-video-aspectRatio', aspectRatio);
-    }, [prompt, ttsEngine, voice, preset, refineText, bgm, temperature, topP, topK, speed, maxRetries, aspectRatio]);
+    }, [prompt, jsonPrompt, mode, ttsEngine, voice, preset, refineText, bgm, temperature, topP, topK, speed, maxRetries, aspectRatio]);
 
     useEffect(() => {
         import('../api').then(mod => mod.getBgms().then(setBgmList));
@@ -127,7 +147,18 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
     }, []);
 
     const handleSubmit = () => {
-        if (!prompt.trim()) return;
+        let finalPrompt = prompt;
+        if (mode === 'json') {
+            try {
+                JSON.parse(jsonPrompt);
+                finalPrompt = jsonPrompt;
+            } catch (e: any) {
+                alert('JSON 格式错误，请检查！\n' + e.message);
+                return;
+            }
+        } else {
+            if (!prompt.trim()) return;
+        }
         
         // Ensure all descriptions are filled
         const missingDesc = userAssets.some(asset => !asset.description.trim());
@@ -137,7 +168,8 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
         }
 
         onGenerate({
-            prompt,
+            prompt: finalPrompt,
+            mode,
             ttsEngine,
             voice,
             temperature,
@@ -157,30 +189,82 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
         <div className="dynamic-video-form">
             <div style={{ marginBottom: '1.5rem', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
                 <h4 className="section-title" style={{ marginBottom: '1rem', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <Sparkles size={18} /> LLM 提示词 (Prompt)
+                    <Sparkles size={18} /> 运行模式 (Workflow Mode)
                 </h4>
-                <div>
-                    <label style={{ display: 'block', fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>描述你想要的视频布局、风格、动画效果等</label>
-                    <textarea
-                        value={prompt}
-                        onChange={(e) => setPrompt(e.target.value)}
-                        placeholder="例如：一个深色的背景，居中的大字标题，背景有一些漂浮的粒子特效..."
-                        style={{
-                            width: '100%',
-                            minHeight: '100px',
-                            padding: '1rem',
-                            borderRadius: '12px',
-                            border: '1px solid var(--border-color)',
-                            backgroundColor: 'rgba(0,0,0,0.3)',
-                            color: 'var(--text-primary)',
-                            fontSize: '1rem',
-                            lineHeight: '1.6',
-                            outline: 'none',
-                            resize: 'vertical'
-                        }}
-                    />
-                </div>
+                <select
+                    value={mode}
+                    onChange={(e) => setMode(e.target.value as 'prompt' | 'json')}
+                    style={{
+                        width: '100%',
+                        padding: '0.8rem',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border-color)',
+                        background: 'rgba(0,0,0,0.3)',
+                        color: 'var(--text-primary)',
+                        outline: 'none'
+                    }}
+                >
+                    <option value="prompt">大模型提示词模式 (Prompt Mode)</option>
+                    <option value="json">直接输入数据结构模式 (Direct JSON Mode)</option>
+                </select>
             </div>
+
+            {mode === 'prompt' ? (
+                <div style={{ marginBottom: '1.5rem', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                    <h4 className="section-title" style={{ marginBottom: '1rem', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <Sparkles size={18} /> LLM 提示词 (Prompt)
+                    </h4>
+                    <div>
+                        <label style={{ display: 'block', fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>描述你想要的视频布局、风格、动画效果等</label>
+                        <textarea
+                            value={prompt}
+                            onChange={(e) => setPrompt(e.target.value)}
+                            placeholder="例如：一个深色的背景，居中的大字标题，背景有一些漂浮的粒子特效..."
+                            style={{
+                                width: '100%',
+                                minHeight: '100px',
+                                padding: '1rem',
+                                borderRadius: '12px',
+                                border: '1px solid var(--border-color)',
+                                backgroundColor: 'rgba(0,0,0,0.3)',
+                                color: 'var(--text-primary)',
+                                fontSize: '1rem',
+                                lineHeight: '1.6',
+                                outline: 'none',
+                                resize: 'vertical'
+                            }}
+                        />
+                    </div>
+                </div>
+            ) : (
+                <div style={{ marginBottom: '1.5rem', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                    <h4 className="section-title" style={{ marginBottom: '1rem', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <Type size={18} /> 数据结构 JSON (Template Props)
+                    </h4>
+                    <div>
+                        <label style={{ display: 'block', fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>直接指定合成参数，视频包含：标题卡、结尾卡、进度条和展开图文，将跳过大模型调用</label>
+                        <textarea
+                            value={jsonPrompt}
+                            onChange={(e) => setJsonPrompt(e.target.value)}
+                            placeholder="请输入符合 TemplateProps 的 JSON 数据结构..."
+                            style={{
+                                width: '100%',
+                                minHeight: '220px',
+                                padding: '1rem',
+                                borderRadius: '12px',
+                                border: '1px solid var(--border-color)',
+                                backgroundColor: 'rgba(0,0,0,0.3)',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.95rem',
+                                fontFamily: 'monospace',
+                                lineHeight: '1.6',
+                                outline: 'none',
+                                resize: 'vertical'
+                            }}
+                        />
+                    </div>
+                </div>
+            )}
 
             <div style={{ marginBottom: '1.5rem', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
                 <h4 className="section-title" style={{ marginBottom: '1rem', fontSize: '1rem' }}>📐 视频比例 (Aspect Ratio)</h4>
@@ -571,7 +655,7 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
                 <button
                     className="btn-primary"
                     onClick={handleSubmit}
-                    disabled={disabled || !prompt.trim()}
+                    disabled={disabled || (mode === 'prompt' ? !prompt.trim() : !jsonPrompt.trim())}
                     style={{ width: '100%', marginTop: '1.5rem' }}
                 >
                     {submitLabel}
