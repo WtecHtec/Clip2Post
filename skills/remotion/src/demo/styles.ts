@@ -16,3 +16,45 @@ export const CANVAS = {
   width: 1080,
   height: 1920,
 };
+
+import { delayRender, continueRender, staticFile } from 'remotion';
+import { loadFont as loadInter } from '@remotion/google-fonts/Inter';
+import { loadFont as loadSilkscreen } from '@remotion/google-fonts/Silkscreen';
+import { loadFont as loadZcoolQingKe } from '@remotion/google-fonts/ZCOOLQingKeHuangYou';
+import { loadFont as loadZcoolKuaiLe } from '@remotion/google-fonts/ZCOOLKuaiLe';
+
+// Load local pixel font
+if (typeof window !== 'undefined') {
+  const pixelFontFace = new FontFace(
+    'ArkPixel',
+    `url(${staticFile('fonts/ark-pixel.otf')})`
+  );
+
+  const waitForFont = delayRender();
+  pixelFontFace.load()
+    .then((loadedFace) => {
+      document.fonts.add(loadedFace);
+      continueRender(waitForFont);
+    })
+    .catch((err) => {
+      console.warn('Failed to load local ArkPixel font:', err);
+      continueRender(waitForFont);
+    });
+}
+
+export const getFontFamily = (fontMode?: string): string => {
+  if (fontMode === 'pixel') {
+    const { fontFamily } = loadSilkscreen();
+    return `"ArkPixel", "${fontFamily}", "VT323", "Courier New", monospace`;
+  }
+  if (fontMode === 'techy') {
+    const { fontFamily } = loadZcoolQingKe();
+    return `"${fontFamily}", "PingFang SC", sans-serif`;
+  }
+  if (fontMode === 'cute') {
+    const { fontFamily } = loadZcoolKuaiLe();
+    return `"${fontFamily}", "PingFang SC", sans-serif`;
+  }
+  const { fontFamily } = loadInter();
+  return `"${fontFamily}", -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif`;
+};

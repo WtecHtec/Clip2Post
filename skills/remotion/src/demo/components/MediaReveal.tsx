@@ -5,9 +5,9 @@ import {
   interpolate,
   Easing,
   Img,
-  OffthreadVideo,
   staticFile,
 } from 'remotion';
+import { Video } from '@remotion/media';
 import { COLORS } from '../styles';
 
 interface MediaRevealProps {
@@ -98,7 +98,7 @@ export const MediaReveal: React.FC<MediaRevealProps> = ({
         }}
       >
         {showVideo && (
-          <OffthreadVideo
+          <Video
             src={videos[0].startsWith('http') || videos[0].startsWith('/') ? videos[0] : staticFile(videos[0])}
             style={{
               width: '100%',
@@ -106,6 +106,8 @@ export const MediaReveal: React.FC<MediaRevealProps> = ({
               objectFit: 'contain', // 完整显示，不压缩
             }}
             loop
+            muted
+            volume={0}
           />
         )}
 

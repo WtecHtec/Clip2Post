@@ -36,6 +36,7 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
             bodyText: '副语言识别 · 百万人格组合 · 中英双语',
             progressPercent: 45,
             outroTagline: 'AI · 工具 · 变现',
+            fontMode: 'default',
             captions: '这里是口播文案，TTS 将会自动把这段文字转化为语音，并合成到 Remotion 视频中。'
         }, null, 2);
     });
@@ -242,7 +243,10 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
                         <Type size={18} /> 数据结构 JSON (Template Props)
                     </h4>
                     <div>
-                        <label style={{ display: 'block', fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>直接指定合成参数，视频包含：标题卡、结尾卡、进度条和展开图文，将跳过大模型调用</label>
+                        <label style={{ display: 'block', fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
+                            直接指定合成参数，视频包含：标题卡、结尾卡、进度条和展开图文，将跳过大模型调用。
+                            支持通过 <b>fontMode</b> 设置字体（可选值：'default' | 'pixel' (像素风) | 'techy' (科技风) | 'cute' (可爱风)）
+                        </label>
                         <textarea
                             value={jsonPrompt}
                             onChange={(e) => setJsonPrompt(e.target.value)}

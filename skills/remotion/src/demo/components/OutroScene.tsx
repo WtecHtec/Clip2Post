@@ -5,15 +5,17 @@ import {
   interpolate,
   Easing,
 } from 'remotion';
-import { COLORS, CANVAS } from '../styles';
+import { COLORS, CANVAS, getFontFamily } from '../styles';
 import { TemplateProps } from '../types';
 
-export const OutroScene: React.FC<Pick<TemplateProps, 'author' | 'outroTagline'>> = ({
+export const OutroScene: React.FC<Pick<TemplateProps, 'author' | 'outroTagline' | 'fontMode'>> = ({
   author,
   outroTagline = 'AI · 工具 · 变现',
+  fontMode,
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+  const fontFamily = getFontFamily(fontMode);
 
   // 整体淡入
   const fadeIn = interpolate(frame, [0, fps * 0.4], [0, 1], {
@@ -58,7 +60,7 @@ export const OutroScene: React.FC<Pick<TemplateProps, 'author' | 'outroTagline'>
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        fontFamily: '-apple-system, "PingFang SC", "Microsoft YaHei", sans-serif',
+        fontFamily: fontFamily,
         opacity: fadeIn,
       }}
     >
@@ -112,6 +114,10 @@ export const OutroScene: React.FC<Pick<TemplateProps, 'author' | 'outroTagline'>
           flexDirection: 'column',
           alignItems: 'center',
           gap: 32,
+          paddingLeft: 100,
+          paddingRight: 100,
+          width: '100%',
+          boxSizing: 'border-box',
         }}
       >
         {/* Logo */}
@@ -150,6 +156,8 @@ export const OutroScene: React.FC<Pick<TemplateProps, 'author' | 'outroTagline'>
               fontWeight: 700,
               color: COLORS.white,
               letterSpacing: '0.02em',
+              textAlign: 'center',
+              wordBreak: 'break-word',
             }}
           >
             {author}
@@ -169,6 +177,8 @@ export const OutroScene: React.FC<Pick<TemplateProps, 'author' | 'outroTagline'>
               fontSize: 30,
               color: 'rgba(255,255,255,0.3)',
               letterSpacing: '0.15em',
+              textAlign: 'center',
+              wordBreak: 'break-word',
             }}
           >
             {outroTagline}

@@ -11,4 +11,5 @@ export interface TemplateProps {
   captions?: string;       // 口播文案，TTS
   audioPath?: string;      // 生成的语音路径
   bgmPath?: string;        // 背景音乐路径
+  fontMode?: string;       // 字体模式，支持 'default' | 'pixel' | 'techy' | 'cute'
 }

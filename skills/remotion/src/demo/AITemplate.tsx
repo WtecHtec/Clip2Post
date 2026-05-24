@@ -36,7 +36,7 @@ export const AITemplate: React.FC<TemplateProps> = (props) => {
           <TitleScene {...props} />
         </Series.Sequence>
         <Series.Sequence durationInFrames={outroDuration}>
-          <OutroScene author={props.author} outroTagline={props.outroTagline} />
+          <OutroScene author={props.author} outroTagline={props.outroTagline} fontMode={props.fontMode} />
         </Series.Sequence>
       </Series>
     </AbsoluteFill>

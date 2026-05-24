@@ -5,7 +5,7 @@ import {
   interpolate,
   Easing,
 } from 'remotion';
-import { COLORS, CANVAS } from '../styles';
+import { COLORS, CANVAS, getFontFamily } from '../styles';
 import { TopBar } from './TopBar';
 import { TitleBlock } from './TitleBlock';
 import { MediaReveal } from './MediaReveal';
@@ -20,9 +20,11 @@ export const TitleScene: React.FC<TemplateProps> = ({
   images = [],
   videos = [],
   progressPercent = 25,
+  fontMode,
 }) => {
   const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
+  const { fps, durationInFrames } = useVideoConfig();
+  const fontFamily = getFontFamily(fontMode);
 
   const hasMedia = images.length > 0 || videos.length > 0;
 
@@ -33,13 +35,17 @@ export const TitleScene: React.FC<TemplateProps> = ({
     extrapolateRight: 'clamp',
   });
 
-  // 进度条填充动画
+  // Calculate title scene duration (composition duration minus 2 seconds outro)
+  const outroDuration = fps * 2;
+  const titleDuration = Math.max(1, durationInFrames - outroDuration);
+
+  // 进度条填充动画：随着播放时间线性增长至 progressPercent
   const progressWidth = interpolate(
     frame,
-    [fps * 0.3, fps * 1.2],
+    [0, titleDuration],
     [0, progressPercent],
     {
-      easing: Easing.out(Easing.ease),
+      easing: Easing.linear,
       extrapolateLeft: 'clamp',
       extrapolateRight: 'clamp',
     }
@@ -57,8 +63,8 @@ export const TitleScene: React.FC<TemplateProps> = ({
         background: COLORS.bg,
         position: 'relative',
         overflow: 'hidden',
-        padding: '72px 64px',
-        fontFamily: '-apple-system, "PingFang SC", "Microsoft YaHei", sans-serif',
+        padding: '72px 100px',
+        fontFamily: fontFamily,
       }}
     >
       {/* 网格背景 */}
@@ -93,8 +99,8 @@ export const TitleScene: React.FC<TemplateProps> = ({
         style={{
           position: 'absolute',
           top: 72,
-          left: 64,
-          right: 64,
+          left: 100,
+          right: 100,
           zIndex: 10,
         }}
       >
@@ -155,8 +161,8 @@ export const TitleScene: React.FC<TemplateProps> = ({
         style={{
           position: 'absolute',
           bottom: 72,
-          left: 64,
-          right: 64,
+          left: 100,
+          right: 100,
           height: 4,
           background: COLORS.progressBg,
           borderRadius: 2,

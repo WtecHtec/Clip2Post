@@ -34,3 +34,6 @@ tasks/*
 **/public/*
 /llm_logs/*
 **/dynamic/*
+*.mp4
+*.wav
+test*
