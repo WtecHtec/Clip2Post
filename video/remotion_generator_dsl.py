@@ -271,9 +271,9 @@ class RemotionGeneratorDSL:
         width, height = (1080, 1920) if aspect_ratio == "9:16" else (1920, 1080)
         orientation = "Portrait / 竖屏" if aspect_ratio == "9:16" else "Landscape / 横屏"
         subtitle_placement = (
-            "字幕应放置在屏幕**最底部（高度 80%-90% 处，例如 bottom: '80px' 左右）**，绝对不要放置在正中央或中上部，以防遮挡和影响中央的视频/图片内容显示"
+            "字幕应严格放置在屏幕**底部最下方（高度 80%-90% 处，例如 bottom: '100px' 左右）**，必须水平居中。绝对不要放置在顶部、左侧、右侧或正中央，以防遮挡中央的视频/图片内容。"
             if aspect_ratio == "9:16"
-            else "字幕应放置在屏幕**最底部（高度 80%-90% 处，例如 bottom: '60px' 左右）**，绝对不要放置在正中央，以防遮挡和影响中央的视频/图片内容显示"
+            else "字幕应严格放置在屏幕**底部最下方（高度 80%-90% 处，例如 bottom: '80px' 左右）**，必须水平居中。绝对不要放置在顶部、左侧、右侧、正中央，禁止采用分栏或偏移布局。"
         )
 
         output_path_obj = Path(output_path).resolve()

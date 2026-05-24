@@ -108,9 +108,9 @@ class RemotionGenerator:
             # Inject aspect ratio into prompt via placeholders
             orientation = "Portrait / 竖屏" if aspect_ratio == "9:16" else "Landscape / 横屏"
             subtitle_placement = (
-                "字幕应放置在屏幕**中下部（高度 70%-85% 处）**或**正中央**"
+                "字幕应严格放置在屏幕**底部（高度 80%-90% 处，例如 bottom: '100px'）**，必须水平居中。绝对禁止放置在屏幕的上方、左侧、右侧或正中央。"
                 if aspect_ratio == "9:16"
-                else "字幕应放置在屏幕**底部（高度 80%-90% 处）**，或采用左右分栏布局"
+                else "字幕应严格放置在屏幕**底部（高度 80%-90% 处，例如 bottom: '80px'）**，必须水平居中。绝对禁止放置在屏幕的上方、左侧、右侧、正中央，不要采用左右分栏布局。"
             )
             system_prompt = (system_prompt
                 .replace("{{ASPECT_RATIO}}", aspect_ratio)

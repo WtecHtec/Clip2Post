@@ -104,7 +104,7 @@ JSON 的格式规范如下：
 
    **四大层级架构代码范式（包含 uniqueAssets 合并与常驻渲染实现）：**
    ```tsx
-   import { useVideoConfig, useCurrentFrame, AbsoluteFill, Sequence, Img, interpolate } from 'remotion';
+   import { useVideoConfig, useCurrentFrame, AbsoluteFill, Sequence, Img, interpolate, spring } from 'remotion';
    import { Video } from '@remotion/media';
    import React, { useMemo } from 'react';
 
@@ -206,7 +206,149 @@ JSON 的格式规范如下：
      );
    };
 
-   // 2. 主场景组件拼装
+    // 2. 全局动态弥散光晕背景层 (GlobalBackground) —— 杜绝纯黑，提供呼吸感的渐变背景
+    const GlobalBackground = ({ frame }: { frame: number }) => {
+      const x1 = interpolate(Math.sin(frame / 60), [-1, 1], [10, 40]);
+      const y1 = interpolate(Math.cos(frame / 80), [-1, 1], [10, 50]);
+      const x2 = interpolate(Math.cos(frame / 70), [-1, 1], [60, 90]);
+      const y2 = interpolate(Math.sin(frame / 90), [-1, 1], [50, 85]);
+
+      return (
+        <AbsoluteFill
+          style={{
+            background: '#0a0b10',
+            backgroundImage: `
+              radial-gradient(circle at ${x1}% ${y1}%, rgba(99, 102, 241, 0.15) 0%, transparent 50%),
+              radial-gradient(circle at ${x2}% ${y2}%, rgba(236, 72, 153, 0.12) 0%, transparent 50%),
+              radial-gradient(circle at 50% 50%, rgba(16, 185, 129, 0.05) 0%, transparent 70%)
+            `,
+          }}
+        />
+      );
+    };
+
+    // 3. 场景图效层示例：开场场景 (SceneOpening) —— 演示如何使用毛玻璃卡片、渐变文字、徽标和 spring 进场动画突出核心观点
+    const SceneOpening = ({ frame, title = "有道子曰 4.0 全量开源", subtitle = "专注于教育场景的高难度数理多模态大模型" }: { frame: number; title?: string; subtitle?: string }) => {
+      const { fps } = useVideoConfig();
+      const scale = spring({
+        frame,
+        fps,
+        config: { damping: 14, stiffness: 100 },
+      });
+      
+      return (
+        <AbsoluteFill
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+            alignItems: 'center',
+            padding: '80px',
+          }}
+        >
+          <div
+            style={{
+              transform: `scale(${scale})`,
+              background: 'rgba(255, 255, 255, 0.03)',
+              backdropFilter: 'blur(24px)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              borderRadius: '32px',
+              padding: '48px 40px',
+              width: '90%',
+              boxShadow: '0 30px 60px rgba(0, 0, 0, 0.5)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '24px',
+            }}
+          >
+            <div
+              style={{
+                background: 'linear-gradient(90deg, #6366f1, #ec4899)',
+                padding: '8px 20px',
+                borderRadius: '50px',
+                fontSize: '22px',
+                fontWeight: 700,
+                color: '#fff',
+                letterSpacing: '2px',
+                boxShadow: '0 0 20px rgba(99, 102, 241, 0.4)',
+              }}
+            >
+              BREAKING NEWS
+            </div>
+            <h1
+              style={{
+                fontSize: '48px',
+                fontWeight: 900,
+                textAlign: 'center',
+                margin: 0,
+                lineHeight: 1.25,
+                background: 'linear-gradient(to bottom, #ffffff 60%, #cbd5e1 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+              }}
+            >
+              {title}
+            </h1>
+            <div style={{ width: '80px', height: '4px', background: 'rgba(255,255,255,0.2)', borderRadius: '2px' }} />
+            <p
+              style={{
+                fontSize: '26px',
+                color: '#94a3b8',
+                textAlign: 'center',
+                margin: 0,
+                lineHeight: 1.5,
+              }}
+            >
+              {subtitle}
+            </p>
+          </div>
+        </AbsoluteFill>
+      );
+    };
+
+    // 4. 字幕渲染组件 (CaptionOverlay) —— 演示如何为字幕文字包裹一层精美的磨砂玻璃底框，提升对比度和视觉品质
+    const CaptionOverlay = ({ text }: { text: string }) => {
+      return (
+        <div
+          style={{
+            position: 'absolute',
+            bottom: '120px',
+            width: '100%',
+            display: 'flex',
+            justifyContent: 'center',
+            padding: '0 80px',
+            boxSizing: 'border-box',
+          }}
+        >
+          <div
+            style={{
+              background: 'rgba(10, 10, 15, 0.8)',
+              backdropFilter: 'blur(16px)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              padding: '12px 28px',
+              borderRadius: '20px',
+              boxShadow: '0 12px 40px rgba(0, 0, 0, 0.5)',
+            }}
+          >
+            <span
+              style={{
+                fontSize: '38px',
+                fontWeight: 800,
+                color: '#ffffff',
+                letterSpacing: '1px',
+                textAlign: 'center',
+                textShadow: '0 2px 10px rgba(255, 255, 255, 0.15)',
+              }}
+            >
+              {text}
+            </span>
+          </div>
+        </div>
+      );
+    };
+
+    // 5. 主场景组件拼装
    export default function DynamicScene(props: any) {
      const { fps, width, height } = useVideoConfig();
      const frame = useCurrentFrame();
@@ -260,23 +402,27 @@ JSON 的格式规范如下：
    - **尺寸规范**：固定为 **{{WIDTH}}x{{HEIGHT}}**，显式传入 `width={{WIDTH}}` 和 `height={{HEIGHT}}`（必须是数字类型）。
    - **静音播放**：必须包含 `muted` 和 `volume={0}` 属性。
 
-6. 【内容渲染规则（素材与创意平衡）】：
+6. 【内容与排版渲染规则（拒绝低端“有声PPT”，强化视觉冲击与核心观点）】：
+   - **绝对禁止使用纯黑色/纯白色的平庸PPT画风**：画面中必须包含设计感强的背景、发光边框、有层次的层级堆叠以及动效。
+   - **核心观点高亮与文字层次**：排版上严禁直接展示几行纯白单调的文字。必须使用大字重标题、渐变高亮字色（如 `linear-gradient`）、精致的小胶囊标（Tag/Badge）等突出的排版结构。重要的数字或名词必须成倍放大并使用对比强烈的色彩。
    - **优先使用素材图片/视频**：如果 `caption.image_url` 不为空，**必须**将其作为核心视觉元素展示。
-   - **缩小以保证完整可见**：为了确保素材不被裁剪，**严禁使用 scale(1.1) 等放大效果**。你必须将资产缩小到 **0.8 - 0.9** 之间（例如 `transform: 'scale(0.85)'`），并放置在精致的背景之上。
+   - **缩小以保证完整可见**：为了确保素材不被裁剪，**严禁使用 scale(1.1) 等放大效果**。你必须将资产缩小到 **0.8 - 0.9** 之间（例如 `transform: 'scale(0.85)'`），并在下方为其加一层深色发光的精美圆角背景卡片框。
    - **【强制】无素材场景的视觉补偿**：如果 `caption.image_url` 为空 or 不可用，**严禁**显示空画面。你必须：
-     1. **关键词驱动视觉化**：从 `caption.text` 中提取关键词，使用超大字体（Kinetic Typography）作为视觉主体。
-     2. **创意 SVG 绘图/动画**：使用 React + SVG 绘制与主题相关的几何图形、图标、动态线条。
-     3. **场景总结包装**：利用 `backdrop-filter` 创造具有纵深感的毛玻璃容器，排版展示字幕要点。
+     1. **核心观点精美卡片化**：将当前的观点使用高对比度的大字卡片、毛玻璃质感容器（含外边框与投影）装载呈现。
+     2. **创意 SVG 动态绘图**：利用 React 与 SVG 元素手工绘制精美的逻辑图表，如：带有流动箭头的指向线、发光的气泡流程图、多端互联的雷达网、带有代码语法高亮的编辑框线、或是渐变环形比例图。
+     3. **文字动效弹射**：使用 `spring` 将关键词以极其生动的阻尼弹性放大、震荡的方式射入屏幕，抓住用户眼球。
 
-7. 【极致的美学与视觉张力（极度重要）】：拒绝平庸！实现令人惊惊艳的视觉张力：
-   - **动态排版 (Kinetic Typography)**：使用夸张的超大字体、极强的粗细对比、渐变文字色和遮罩。
-   - **张力动效 (Tension Motion)**：所有元素进出场必须使用 `spring` 动画。绝对不要只用线性移动。
-   - **质感与层次 (Depth & Texture)**：运用深色模式、弥散光影（radial-gradient）、毛玻璃效果（backdrop-filter: blur）。
-   - **镜头感 (Camera Movement)**：利用外层容器的缓慢 `interpolate` 缓动插值，营造画面的呼吸感。
+7. 【极致的美学与视觉张力（核心要求：提高视觉吸引力，拒绝有声PPT）】：拒绝平庸！你必须运用现代高级视频剪辑/MG动效的视觉风格：
+   - **动态弥散背景（必做）**：必须使用随时间流动/位移的彩色光斑（Radial Gradient）作为主背景，禁止单一纯黑（请见下方代码模版中 GlobalBackground 的实现）。
+   - **弹簧力学动效 (Spring Physics)**：所有元素的进出场、卡片切换，必须使用带有弹性反弹（Overshoot/Bounce）的 `spring` 动画，给人一种极其灵动、富有物理弹性的高端质感，严禁死板的线性漂移。
+   - **毛玻璃与发光描边 (Glassmorphism & Glow)**：大量运用 `backdrop-filter: blur(...)`，配上极细的半透明白色描边（`border: '1px solid rgba(255,255,255,0.08)'`）与深色高散投影（`boxShadow`），营造高级悬浮感。
+   - **电影镜头感 (Camera Breathing)**：利用最外层容器的缓慢 `interpolate` 缓动插值，让画面整体在 3% 以内做极其缓慢的往复缩放/呼吸，创造手持镜头的高级感。
 
 8. 【{{ASPECT_RATIO}} 视频美学与边界安全】：
    - 视频尺寸固定为 **{{WIDTH}}x{{HEIGHT}} ({{ORIENTATION}})**。
-   - **字幕安全区域**：保持左右至少 `80px` 内边距， 所有文字必须显示在屏幕内，严禁超出边界， 尽量在视频内容下方。推荐布局：{{SUBTITLE_PLACEMENT}}。
+   - **紧凑高内聚排版（杜绝空洞稀疏）**：由于 {{ORIENTATION}} 纵向空间极大（或横向极宽），**绝对禁止**使用 `justifyContent: 'space-between'` 或 `space-around` 对整个外层容器进行拉伸，这会导致各元素被扯得过远、中间留出巨大的尴尬空白。必须将相关的文本、卡片、对比元素集中在精致的**高内聚容器（Card）**中。
+   - **视觉聚焦与间距规范**：所有核心视觉元素（除顶部小标 and 底部字幕外）必须集中在屏幕中部的黄金视觉区（高度 `25% - 75%` 处）。元素之间的垂直/水平间距（`gap` 或 `margin`）必须保持紧凑，建议在 `16px - 36px` 之间，绝对禁止使用像 `marginTop: '500px'` 这种超大间距来进行定位，确保画面饱满、精致且有呼吸感，而不是松散和空洞。
+   - **字幕位置与安全规范**：字幕**必须且只能**放置在视频画面最下方的水平安全区域内（例如屏幕底端高度 80%-90% 处），保持左右至少 `80px` 内边距，所有文字必须显示在屏幕内，严禁超出边界。推荐布局：{{SUBTITLE_PLACEMENT}}。**绝对禁止**将字幕渲染在屏幕顶部（top）、左侧（left）、右侧（right）或屏幕正中央。
    - **适配性**：长句子必须实现自动换行，确保在屏幕上完整呈现。
 
 9. 【字幕渲染（必须执行）】：
