@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Music, FileJson, Play, RefreshCw, Upload, AlertCircle } from 'lucide-react';
 import { transcribeAudio, renderAudioVideo } from '../api';
 
@@ -15,6 +15,24 @@ export const AudioVideoForm: React.FC<AudioVideoFormProps> = ({ onTaskStarted, d
     const [jsonText, setJsonText] = useState('');
     const [isProcessing, setIsProcessing] = useState(false);
     const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (step !== 'upload') return;
+        const handlePaste = (e: ClipboardEvent) => {
+            if (disabled) return;
+            const files = e.clipboardData?.files;
+            if (files && files.length > 0) {
+                const audioFile = Array.from(files).find(f => f.type.startsWith('audio/'));
+                if (audioFile) {
+                    setFile(audioFile);
+                    e.preventDefault();
+                }
+            }
+        };
+
+        window.addEventListener('paste', handlePaste);
+        return () => window.removeEventListener('paste', handlePaste);
+    }, [disabled, step]);
 
     const handleTranscribe = async () => {
         if (!file) return;
@@ -100,8 +118,8 @@ export const AudioVideoForm: React.FC<AudioVideoFormProps> = ({ onTaskStarted, d
                         ) : (
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
                                 <Upload size={48} color="var(--text-muted)" />
-                                <span style={{ fontSize: '1rem', color: 'var(--text-secondary)' }}>点击或拖拽音频文件到此处</span>
-                                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>支持 MP3, WAV, M4A</span>
+                                <span style={{ fontSize: '1rem', color: 'var(--text-secondary)' }}>点击、拖拽或粘贴音频文件到此处</span>
+                                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>支持 MP3, WAV, M4A，或剪贴板音频</span>
                             </div>
                         )}
                     </div>

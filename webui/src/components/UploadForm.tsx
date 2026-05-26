@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { Upload } from 'lucide-react';
 import classNames from 'classnames';
 interface UploadFormProps {
@@ -53,6 +53,23 @@ export const UploadForm: React.FC<UploadFormProps> = ({
             onFileSelect(e.target.files[0]);
         }
     };
+
+    useEffect(() => {
+        const handlePaste = (e: ClipboardEvent) => {
+            if (videoUrl.length > 0) return;
+            const files = e.clipboardData?.files;
+            if (files && files.length > 0) {
+                const videoFile = Array.from(files).find(f => f.type.startsWith('video/'));
+                if (videoFile) {
+                    onFileSelect(videoFile);
+                    e.preventDefault();
+                }
+            }
+        };
+
+        window.addEventListener('paste', handlePaste);
+        return () => window.removeEventListener('paste', handlePaste);
+    }, [videoUrl, onFileSelect]);
 
     const handleDrop = (e: React.DragEvent) => {
         e.preventDefault();
@@ -113,9 +130,9 @@ export const UploadForm: React.FC<UploadFormProps> = ({
                 >
                     <Upload className="upload-icon mx-auto" />
                     <div className="upload-text">
-                        {file ? file.name : (videoUrl ? 'URL provided (clear to upload file)' : 'Option B: Click or drag local video here')}
+                        {file ? file.name : (videoUrl ? 'URL provided (clear to upload file)' : 'Option B: Click, drag or paste local video here')}
                     </div>
-                    <div className="upload-hint">MP4, MOV, MKV up to 500MB</div>
+                    <div className="upload-hint">MP4, MOV, MKV up to 500MB, or copy-paste file</div>
                     <input
                         type="file"
                         ref={fileInputRef}

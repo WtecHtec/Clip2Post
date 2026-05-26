@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Type, Play, MessageSquare, Sparkles, Image, Plus, Trash2, Camera } from 'lucide-react';
+import { Type, Play, Sparkles, Image, Plus, Trash2 } from 'lucide-react';
 import type { DynamicVideoOptions } from '../api';
 
 interface DynamicVideoFormProps {
@@ -114,17 +114,38 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
         }
     };
 
+    const addAssets = (files: File[]) => {
+        const newFiles = files.map(file => ({ 
+            file, 
+            description: '',
+            type: file.type.startsWith('video/') ? 'video' as const : 'image' as const,
+            previewUrl: URL.createObjectURL(file)
+        }));
+        setUserAssets(prev => [...prev, ...newFiles]);
+    };
+
     const handleAddAsset = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
-            const newFiles = Array.from(e.target.files).map(file => ({ 
-                file, 
-                description: '',
-                type: file.type.startsWith('video/') ? 'video' as const : 'image' as const,
-                previewUrl: URL.createObjectURL(file)
-            }));
-            setUserAssets([...userAssets, ...newFiles]);
+            addAssets(Array.from(e.target.files));
         }
     };
+
+    useEffect(() => {
+        const handlePaste = (e: ClipboardEvent) => {
+            if (disabled) return;
+            const files = e.clipboardData?.files;
+            if (files && files.length > 0) {
+                const assetFiles = Array.from(files).filter(f => f.type.startsWith('image/') || f.type.startsWith('video/'));
+                if (assetFiles.length > 0) {
+                    addAssets(assetFiles);
+                    e.preventDefault();
+                }
+            }
+        };
+
+        window.addEventListener('paste', handlePaste);
+        return () => window.removeEventListener('paste', handlePaste);
+    }, [disabled]);
 
     const handleRemoveAsset = (index: number) => {
         const asset = userAssets[index];
@@ -367,7 +388,7 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
                         }} className="upload-box-hover">
                             <input type="file" multiple accept="image/*,video/*" onChange={handleAddAsset} style={{ display: 'none' }} />
                             <Plus size={32} color="var(--text-secondary)" />
-                            <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>添加素材 (图片/视频)</span>
+                            <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>添加/粘贴素材 (图片/视频)</span>
                         </label>
                     </div>
                     {userAssets.length > 0 && (

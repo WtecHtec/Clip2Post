@@ -40,12 +40,17 @@ export const TTSVideoForm: React.FC<TTSVideoFormProps> = ({
         import('../api').then(mod => mod.getBgms().then(setBgmList));
     }, []);
 
+    const selectImage = (file: File) => {
+        setCoverImage(file);
+        setPreviewUrl(prev => {
+            if (prev) URL.revokeObjectURL(prev);
+            return URL.createObjectURL(file);
+        });
+    };
+
     const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
-            const file = e.target.files[0]
-            setCoverImage(file);
-            const url = URL.createObjectURL(file);
-            setPreviewUrl(url);
+            selectImage(e.target.files[0]);
         }
     };
 
@@ -59,10 +64,26 @@ export const TTSVideoForm: React.FC<TTSVideoFormProps> = ({
         if (disabled) return;
         const files = Array.from(e.dataTransfer.files);
         if (files.length > 0 && files[0].type.startsWith("image/")) {
-            setCoverImage(files[0]);
-            setPreviewUrl(URL.createObjectURL(files[0]));
+            selectImage(files[0]);
         }
     };
+
+    useEffect(() => {
+        const handlePaste = (e: ClipboardEvent) => {
+            if (disabled) return;
+            const files = e.clipboardData?.files;
+            if (files && files.length > 0) {
+                const imageFile = Array.from(files).find(f => f.type.startsWith('image/'));
+                if (imageFile) {
+                    selectImage(imageFile);
+                    e.preventDefault();
+                }
+            }
+        };
+
+        window.addEventListener('paste', handlePaste);
+        return () => window.removeEventListener('paste', handlePaste);
+    }, [disabled]);
 
     const removeImage = (e?: React.MouseEvent) => {
         if (e) {
@@ -157,7 +178,7 @@ export const TTSVideoForm: React.FC<TTSVideoFormProps> = ({
                                 onClick={() => { document.getElementById('cover-image-upload')?.click(); }}
                             >
                                 <ImageIcon className="upload-icon mx-auto" style={{ width: 24, height: 24, marginBottom: 8 }} />
-                                <div className="upload-text" style={{ fontSize: '0.8rem' }}>点击或拖拽上传封面</div>
+                                <div className="upload-text" style={{ fontSize: '0.8rem' }}>点击、拖拽或粘贴上传封面</div>
                                 <input
                                     type="file"
                                     accept="image/*"

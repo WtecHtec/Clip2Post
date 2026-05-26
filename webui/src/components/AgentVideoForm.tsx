@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Sparkles, Wand2, ImagePlus, X, Loader2, MessageSquare, Mic, Play } from 'lucide-react';
 import { generateAgentVideo, generateAIScript } from '../api';
 import type { LLMSettings } from '../api';
@@ -38,16 +38,37 @@ export const AgentVideoForm: React.FC<AgentVideoFormProps> = ({ llmSettings, onT
         import('../api').then(mod => mod.getBgms().then(setBgmList));
     }, []);
 
+    const addImages = (files: File[]) => {
+        const newFiles = files.map(file => ({
+            id: Math.random().toString(36).substr(2, 9),
+            file,
+            description: ''
+        }));
+        setImages(prev => [...prev, ...newFiles]);
+    };
+
     const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
-            const newFiles = Array.from(e.target.files).map(file => ({
-                id: Math.random().toString(36).substr(2, 9),
-                file,
-                description: ''
-            }));
-            setImages(prev => [...prev, ...newFiles]);
+            addImages(Array.from(e.target.files));
         }
     };
+
+    useEffect(() => {
+        const handlePaste = (e: ClipboardEvent) => {
+            if (disabled) return;
+            const files = e.clipboardData?.files;
+            if (files && files.length > 0) {
+                const imageFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
+                if (imageFiles.length > 0) {
+                    addImages(imageFiles);
+                    e.preventDefault();
+                }
+            }
+        };
+
+        window.addEventListener('paste', handlePaste);
+        return () => window.removeEventListener('paste', handlePaste);
+    }, [disabled]);
 
     const removeImage = (id: string) => {
         setImages(prev => prev.filter(img => img.id !== id));
@@ -221,7 +242,7 @@ export const AgentVideoForm: React.FC<AgentVideoFormProps> = ({ llmSettings, onT
                         >
                             <input type="file" multiple accept="image/*" onChange={handleImageUpload} style={{ display: 'none' }} />
                             <ImagePlus size={24} style={{ opacity: 0.5 }} />
-                            <span style={{ fontSize: '0.8rem', opacity: 0.5 }}>添加图片</span>
+                            <span style={{ fontSize: '0.8rem', opacity: 0.5 }}>添加/粘贴图片</span>
                         </label>
                     </div>
                 </div>

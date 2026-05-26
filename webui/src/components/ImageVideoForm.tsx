@@ -39,12 +39,17 @@ export const ImageVideoForm: React.FC<ImageVideoFormProps> = ({
     const [speed, setSpeed] = useState(5);
     const [refineText, setRefineText] = useState(true);
 
+    const selectImage = (file: File) => {
+        setImage(file);
+        setPreviewUrl(prev => {
+            if (prev) URL.revokeObjectURL(prev);
+            return URL.createObjectURL(file);
+        });
+    };
+
     const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
-            const file = e.target.files[0]
-            setImage(file);
-            const url = URL.createObjectURL(file);
-            setPreviewUrl(url);
+            selectImage(e.target.files[0]);
         }
     };
 
@@ -58,10 +63,26 @@ export const ImageVideoForm: React.FC<ImageVideoFormProps> = ({
         if (disabled) return;
         const files = Array.from(e.dataTransfer.files);
         if (files.length > 0 && files[0].type.startsWith("image/")) {
-            setImage(files[0]);
-            setPreviewUrl(URL.createObjectURL(files[0]));
+            selectImage(files[0]);
         }
     };
+
+    useEffect(() => {
+        const handlePaste = (e: ClipboardEvent) => {
+            if (disabled) return;
+            const files = e.clipboardData?.files;
+            if (files && files.length > 0) {
+                const imageFile = Array.from(files).find(f => f.type.startsWith('image/'));
+                if (imageFile) {
+                    selectImage(imageFile);
+                    e.preventDefault();
+                }
+            }
+        };
+
+        window.addEventListener('paste', handlePaste);
+        return () => window.removeEventListener('paste', handlePaste);
+    }, [disabled]);
 
     const removeImage = () => {
         setImage(null);
@@ -102,8 +123,8 @@ export const ImageVideoForm: React.FC<ImageVideoFormProps> = ({
                         onClick={() => { document.getElementById('image-upload')?.click(); }}
                     >
                         <ImageIcon className="upload-icon mx-auto" />
-                        <div className="upload-text">点击或拖拽图片到此处</div>
-                        <div className="upload-hint">支持 JPG, PNG</div>
+                        <div className="upload-text">点击、拖拽或粘贴图片到此处</div>
+                        <div className="upload-hint">支持 JPG, PNG，或剪贴板图片</div>
                         <input
                             type="file"
                             accept="image/*"
