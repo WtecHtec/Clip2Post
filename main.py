@@ -19,6 +19,7 @@ from screenshot.extractor import ScreenshotExtractor
 from utils.html_builder import build_html_article
 from tts.processor import run_tts_sync
 from tts.kokoro_processor import run_kokoro_tts_sync
+from tts.voxcpm_processor import run_voxcpm_tts_sync
 from video.remotion_renderer import run_remotion_render
 import json
 
@@ -203,6 +204,8 @@ def process_tts_render_pipeline(
         elif tts_engine == "omnivoice":
             from tts.omnivoice_processor import run_omnivoice_tts_sync
             audio_path, json_path = run_omnivoice_tts_sync(text, str(output_base), voice_instruct=voice)
+        elif tts_engine == "voxcpm":
+            audio_path, json_path = run_voxcpm_tts_sync(text, str(output_base), voice=voice)
         else:
             voice = voice or "zh-CN-XiaoxiaoNeural"
             audio_path, json_path = run_tts_sync(text, str(output_base), voice=voice)
@@ -301,6 +304,8 @@ def process_dynamic_video_pipeline(
             elif tts_engine == "omnivoice":
                 from tts.omnivoice_processor import run_omnivoice_tts_sync
                 audio_path, json_path = run_omnivoice_tts_sync(voiceover_text, str(output_base), voice_instruct=voice)
+            elif tts_engine == "voxcpm":
+                audio_path, json_path = run_voxcpm_tts_sync(voiceover_text, str(output_base), voice=voice)
             elif tts_engine == "kokoro":
                 from tts.kokoro_processor import run_kokoro_tts_sync
                 voice_k = voice or "af_heart"
@@ -442,6 +447,8 @@ def process_dynamic_video_pipeline(
         elif tts_engine == "omnivoice":
             from tts.omnivoice_processor import run_omnivoice_tts_sync
             audio_path, json_path = run_omnivoice_tts_sync(voiceover_text, str(output_base), voice_instruct=voice)
+        elif tts_engine == "voxcpm":
+            audio_path, json_path = run_voxcpm_tts_sync(voiceover_text, str(output_base), voice=voice)
         else:
             voice = voice or "zh-CN-XiaoxiaoNeural"
             from tts.processor import run_tts_sync
@@ -546,6 +553,38 @@ def process_dynamic_video_pipeline(
         error_msg = f"动态视频生成失败: {str(e)}"
         task_manager.update_status(1.0, error_msg, "error")
         print(traceback.format_exc())
+
+
+@app.post("/api/upload_voice")
+async def upload_voice(file: UploadFile = File(...)):
+    """Upload custom .wav voice files for VoxCPM voice cloning."""
+    try:
+        import time
+        import re
+        from pathlib import Path
+        preset_dir = Path("tts/voxcpmwav")
+        preset_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Clean file name to prevent directory traversal
+        filename = os.path.basename(file.filename)
+        cleaned_filename = re.sub(r'[^\w\u4e00-\u9fff\.-]', '_', filename)
+        new_filename = f"uploaded_{int(time.time())}_{cleaned_filename}"
+        
+        save_path = preset_dir / new_filename
+        with open(save_path, "wb") as f:
+            f.write(await file.read())
+            
+        print(f"Uploaded voice saved to: {save_path.resolve()}")
+        
+        return {
+            "success": True, 
+            "filename": new_filename,
+            "absolute_path": str(save_path.resolve())
+        }
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc())
+        return JSONResponse(status_code=500, content={"error": f"上传音频失败: {str(e)}"})
 
 
 @app.post("/api/upload")
@@ -851,6 +890,8 @@ def process_agent_video_pipeline(
         elif tts_engine == "omnivoice":
             from tts.omnivoice_processor import run_omnivoice_tts_sync
             audio_path, json_path = run_omnivoice_tts_sync(text, str(output_base), voice_instruct=voice)
+        elif tts_engine == "voxcpm":
+            audio_path, json_path = run_voxcpm_tts_sync(text, str(output_base), voice=voice)
         else:
             voice = voice or "zh-CN-XiaoxiaoNeural"
             audio_path, json_path = run_tts_sync(text, str(output_base), voice=voice)
@@ -1037,6 +1078,8 @@ def process_image_video_pipeline(
         elif tts_engine == "omnivoice":
             from tts.omnivoice_processor import run_omnivoice_tts_sync
             audio_path, json_path = run_omnivoice_tts_sync(text, str(output_base), voice_instruct=voice)
+        elif tts_engine == "voxcpm":
+            audio_path, json_path = run_voxcpm_tts_sync(text, str(output_base), voice=voice)
         else:
             voice = voice or "zh-CN-XiaoxiaoNeural"
             from tts.processor import run_tts_sync
@@ -1153,6 +1196,8 @@ def process_news_video_pipeline(
         elif tts_engine == "omnivoice":
             from tts.omnivoice_processor import run_omnivoice_tts_sync
             audio_path, json_path = run_omnivoice_tts_sync(combined_text, str(output_base), voice_instruct=voice)
+        elif tts_engine == "voxcpm":
+            audio_path, json_path = run_voxcpm_tts_sync(combined_text, str(output_base), voice=voice)
         else:
             voice = voice or "zh-CN-XiaoxiaoNeural"
             from tts.processor import run_tts_sync
@@ -1547,6 +1592,8 @@ async def generate_tts_api(
         elif tts_engine == "omnivoice":
             from tts.omnivoice_processor import run_omnivoice_tts_sync
             audio_path, json_path = run_omnivoice_tts_sync(text, output_base, voice_instruct=voice)
+        elif tts_engine == "voxcpm":
+            audio_path, json_path = run_voxcpm_tts_sync(text, output_base, voice=voice)
         else:
             voice = voice or "zh-CN-XiaoxiaoNeural"
             from tts.processor import run_tts_sync

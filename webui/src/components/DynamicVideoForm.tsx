@@ -464,6 +464,17 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
                             />
                             <span>OmniVoice (High Quality Zero-Shot)</span>
                         </label>
+                        <label className="radio-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                            <input
+                                type="radio"
+                                name="ttsEngine"
+                                value="voxcpm"
+                                checked={ttsEngine === 'voxcpm'}
+                                onChange={() => { setTtsEngine('voxcpm'); setVoice(''); }}
+                                style={{ accentColor: 'var(--accent-primary)' }}
+                            />
+                            <span>VoxCPM (Tokenizer-Free Local Model)</span>
+                        </label>
                     </div>
 
                     <div style={{ flex: 1, minWidth: '200px' }}>
@@ -486,21 +497,84 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
                                 </button>
                             )}
                         </div>
-                        <input
-                            type="text"
-                            placeholder={ttsEngine === 'kokoro' ? "e.g. af_heart, jm_kama..." : (ttsEngine === 'chattts' ? "Seed number or empty" : (ttsEngine === 'omnivoice' ? "e.g. female, british accent" : "e.g. zh-CN-XiaoxiaoNeural..."))}
-                            value={voice}
-                            onChange={(e) => setVoice(e.target.value)}
-                            style={{
-                                width: '100%',
-                                padding: '0.8rem',
-                                borderRadius: '8px',
-                                border: '1px solid var(--border-color)',
-                                background: 'var(--bg-secondary)',
-                                color: 'var(--text-primary)',
-                                outline: 'none'
-                            }}
-                        />
+                        {ttsEngine === 'voxcpm' ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', marginTop: '0.5rem', width: '100%' }}>
+                                <div style={{ display: 'flex', gap: '1.2rem', marginBottom: '0.2rem' }}>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', fontSize: '0.85rem' }}>
+                                        <input
+                                            type="radio"
+                                            name="voxcpmModeDynamic"
+                                            checked={!voice || voice === 'biaoge' || voice === 'boniu' || voice === 'liuxi'}
+                                            onChange={() => setVoice('biaoge')}
+                                            style={{ accentColor: 'var(--accent-primary)' }}
+                                        />
+                                        <span>使用预设音色</span>
+                                    </label>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', fontSize: '0.85rem' }}>
+                                        <input
+                                            type="radio"
+                                            name="voxcpmModeDynamic"
+                                            checked={voice && voice !== 'biaoge' && voice !== 'boniu' && voice !== 'liuxi'}
+                                            onChange={() => setVoice('')}
+                                            style={{ accentColor: 'var(--accent-primary)' }}
+                                        />
+                                        <span>自定义音色描述</span>
+                                    </label>
+                                </div>
+
+                                {(!voice || voice === 'biaoge' || voice === 'boniu' || voice === 'liuxi') ? (
+                                    <select
+                                        value={voice || 'biaoge'}
+                                        onChange={(e) => setVoice(e.target.value)}
+                                        style={{
+                                            width: '100%',
+                                            padding: '0.8rem',
+                                            borderRadius: '8px',
+                                            border: '1px solid var(--border-color)',
+                                            background: 'var(--bg-secondary)',
+                                            color: 'var(--text-primary)',
+                                            outline: 'none'
+                                        }}
+                                    >
+                                        <option value="biaoge">表哥 — 成熟男性，沉稳磁性</option>
+                                        <option value="boniu">波妞 — 成熟男性，播音腔调</option>
+                                        <option value="liuxi">柳溪 — 年轻女性，温柔甜美</option>
+                                    </select>
+                                ) : (
+                                    <input
+                                        type="text"
+                                        placeholder="如：年轻男性，声音磁性沉稳，语调自然"
+                                        value={voice}
+                                        onChange={(e) => setVoice(e.target.value)}
+                                        style={{
+                                            width: '100%',
+                                            padding: '0.8rem',
+                                            borderRadius: '8px',
+                                            border: '1px solid var(--border-color)',
+                                            background: 'var(--bg-secondary)',
+                                            color: 'var(--text-primary)',
+                                            outline: 'none'
+                                        }}
+                                    />
+                                )}
+                            </div>
+                        ) : (
+                            <input
+                                type="text"
+                                placeholder={ttsEngine === 'kokoro' ? "e.g. af_heart, jm_kama..." : (ttsEngine === 'chattts' ? "Seed number or empty" : (ttsEngine === 'omnivoice' ? "e.g. female, british accent" : (ttsEngine === 'voxcpm' ? "Enter description or path to .wav file" : "e.g. zh-CN-XiaoxiaoNeural...")))}
+                                value={voice}
+                                onChange={(e) => setVoice(e.target.value)}
+                                style={{
+                                    width: '100%',
+                                    padding: '0.8rem',
+                                    borderRadius: '8px',
+                                    border: '1px solid var(--border-color)',
+                                    background: 'var(--bg-secondary)',
+                                    color: 'var(--text-primary)',
+                                    outline: 'none'
+                                }}
+                            />
+                        )}
                         {ttsEngine === 'chattts' && (
                             <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginTop: '1rem' }}>
                                 <div style={{ flex: 1, minWidth: '150px' }}>
@@ -651,6 +725,9 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
                             )}
                             {ttsEngine === 'omnivoice' && (
                                 <p style={{ margin: 0 }}>💡 <b>OmniVoice:</b> 输入声音风格，中文如 <i>女，低音调</i>（全角逗号分隔），英文如 <i>female, low pitch</i>。</p>
+                            )}
+                            {ttsEngine === 'voxcpm' && (
+                                <p style={{ margin: 0 }}>💡 <b>VoxCPM:</b> 可选择下方预设音色，或者上传自定义音频进行零样本（Zero-Shot）音色克隆。</p>
                             )}
                         </div>
                         <div className="form-group" style={{ marginTop: '1rem' }}>

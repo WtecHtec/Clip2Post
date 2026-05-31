@@ -224,6 +224,7 @@ export const ImageVideoForm: React.FC<ImageVideoFormProps> = ({
                             if (newEngine === 'edge') setVoice('zh-CN-XiaoxiaoNeural');
                             else if (newEngine === 'kokoro') setVoice('af_heart');
                             else if (newEngine === 'omnivoice') setVoice('女');
+                            else if (newEngine === 'voxcpm') setVoice('A young female, gentle and sweet voice');
                             else setVoice('');
                         }}
                         disabled={disabled}
@@ -238,6 +239,7 @@ export const ImageVideoForm: React.FC<ImageVideoFormProps> = ({
                         }}
                     >
                         <option value="edge">Edge TTS</option>
+                        <option value="voxcpm">VoxCPM</option>
                         <option value="omnivoice">OmniVoice (小米星辰)</option>
                         <option value="chattts">ChatTTS</option>
                         <option value="kokoro">Kokoro</option>
@@ -316,29 +318,97 @@ export const ImageVideoForm: React.FC<ImageVideoFormProps> = ({
                             <option value="男，老年">男声 - 老年 (男，老年)</option>
                         </select>
                     ) : (
-                        <input
-                            type="text"
-                            value={voice}
-                            onChange={(e) => setVoice(e.target.value)}
-                            placeholder="自定义Voice/风格指令"
-                            disabled={disabled}
-                            style={{
-                                width: '100%',
-                                padding: '0.8rem',
-                                borderRadius: '8px',
-                                border: '1px solid var(--border-color)',
-                                background: 'rgba(255, 255, 255, 0.05)',
-                                color: 'var(--text-primary)',
-                                outline: 'none'
-                            }}
-                        />
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '100%' }}>
+                            {ttsEngine === 'voxcpm' ? (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', width: '100%' }}>
+                                    <div style={{ display: 'flex', gap: '1.2rem', marginBottom: '0.2rem' }}>
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', fontSize: '0.85rem' }}>
+                                            <input
+                                                type="radio"
+                                                name="voxcpmModeImage"
+                                                checked={!voice || voice === 'biaoge' || voice === 'boniu' || voice === 'liuxi'}
+                                                onChange={() => setVoice('biaoge')}
+                                                style={{ accentColor: 'var(--accent-primary)' }}
+                                            />
+                                            <span>使用预设音色</span>
+                                        </label>
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', fontSize: '0.85rem' }}>
+                                            <input
+                                                type="radio"
+                                                name="voxcpmModeImage"
+                                                checked={voice && voice !== 'biaoge' && voice !== 'boniu' && voice !== 'liuxi'}
+                                                onChange={() => setVoice('')}
+                                                style={{ accentColor: 'var(--accent-primary)' }}
+                                            />
+                                            <span>自定义音色描述</span>
+                                        </label>
+                                    </div>
+
+                                    {(!voice || voice === 'biaoge' || voice === 'boniu' || voice === 'liuxi') ? (
+                                        <select
+                                            value={voice || 'biaoge'}
+                                            onChange={(e) => setVoice(e.target.value)}
+                                            style={{
+                                                width: '100%',
+                                                padding: '0.8rem',
+                                                borderRadius: '8px',
+                                                border: '1px solid var(--border-color)',
+                                                background: 'rgba(255, 255, 255, 0.05)',
+                                                color: 'var(--text-primary)',
+                                                outline: 'none'
+                                            }}
+                                        >
+                                            <option value="biaoge" style={{ background: '#1e1e24', color: 'white' }}>表哥 — 成熟男性，沉稳磁性</option>
+                                            <option value="boniu" style={{ background: '#1e1e24', color: 'white' }}>波妞 — 成熟男性，播音腔调</option>
+                                            <option value="liuxi" style={{ background: '#1e1e24', color: 'white' }}>柳溪 — 年轻女性，温柔甜美</option>
+                                        </select>
+                                    ) : (
+                                        <input
+                                            type="text"
+                                            placeholder="如：年轻男性，声音磁性沉稳，语调自然"
+                                            value={voice}
+                                            onChange={(e) => setVoice(e.target.value)}
+                                            style={{
+                                                width: '100%',
+                                                padding: '0.8rem',
+                                                borderRadius: '8px',
+                                                border: '1px solid var(--border-color)',
+                                                background: 'rgba(255, 255, 255, 0.05)',
+                                                color: 'var(--text-primary)',
+                                                outline: 'none'
+                                            }}
+                                        />
+                                    )}
+                                    <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.6 }}>
+                                        💡 <b>VoxCPM:</b> 选择预设音色，或输入自定义音色描述（如"年轻男性，声音沉稳"）来控制音色风格。
+                                    </p>
+                                </div>
+                            ) : (
+                                <input
+                                    type="text"
+                                    value={voice}
+                                    onChange={(e) => setVoice(e.target.value)}
+                                    placeholder="自定义Voice/风格指令"
+                                    disabled={disabled}
+                                    style={{
+                                        width: '100%',
+                                        padding: '0.8rem',
+                                        borderRadius: '8px',
+                                        border: '1px solid var(--border-color)',
+                                        background: 'rgba(255, 255, 255, 0.05)',
+                                        color: 'var(--text-primary)',
+                                        outline: 'none'
+                                    }}
+                                />
+                            )}
+                        </div>
                     )}
                 </div>
             </div>
 
             {/* Advanced TTS Settings (same as TTSVideoForm) */}
             <details style={{ background: 'rgba(0,0,0,0.2)', padding: '1rem', borderRadius: '12px', marginBottom: '1.5rem', border: '1px solid rgba(255,255,255,0.05)' }}>
-                <summary style={{ cursor: 'pointer', fontWeight: 500, userSelect: 'none' }}>高级配置 (ChatTTS/OmniVoice)</summary>
+                <summary style={{ cursor: 'pointer', fontWeight: 500, userSelect: 'none' }}>高级配置 (ChatTTS/OmniVoice/VoxCPM)</summary>
                 <div className="form-group grid" style={{ marginTop: '1rem', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1rem' }}>
                     <div>
                         <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>Temperature</label>

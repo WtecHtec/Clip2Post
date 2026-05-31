@@ -295,7 +295,7 @@ export const AgentVideoForm: React.FC<AgentVideoFormProps> = ({ llmSettings, onT
                             <Mic size={18} /> 语音引擎
                         </h4>
                         <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
-                            {['edge', 'chattts', 'kokoro', 'omnivoice'].map(engine => (
+                            {['edge', 'chattts', 'kokoro', 'omnivoice', 'voxcpm'].map(engine => (
                                 <label key={engine} style={{
                                     cursor: 'pointer',
                                     padding: '0.5rem 1rem',
@@ -309,6 +309,7 @@ export const AgentVideoForm: React.FC<AgentVideoFormProps> = ({ llmSettings, onT
                                         if (engine === 'edge') setVoice('zh-CN-XiaoxiaoNeural');
                                         else if (engine === 'kokoro') setVoice('af_heart');
                                         else if (engine === 'omnivoice') setVoice('女');
+                                        else if (engine === 'voxcpm') setVoice('A young female, gentle and sweet voice');
                                         else setVoice('');
                                     }} style={{ display: 'none' }} />
                                     {engine.toUpperCase()}
@@ -382,22 +383,91 @@ export const AgentVideoForm: React.FC<AgentVideoFormProps> = ({ llmSettings, onT
                                 <option value="女，老年">女声 - 老年 (女，老年)</option>
                                 <option value="男，老年">男声 - 老年 (男，老年)</option>
                             </select>
-                        ) : (
-                            <input
-                                type="text"
-                                placeholder="Voice Name / Seed"
-                                value={voice}
-                                onChange={(e) => setVoice(e.target.value)}
-                                style={{
-                                    width: '100%',
-                                    padding: '0.8rem',
-                                    borderRadius: '8px',
-                                    border: '1px solid rgba(255,255,255,0.1)',
-                                    background: 'rgba(0,0,0,0.2)',
-                                    color: 'white'
-                                }}
-                            />
-                        )}
+                         ) : (
+                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '100%' }}>
+                                 {ttsEngine === 'voxcpm' ? (
+                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', width: '100%' }}>
+                                         <div style={{ display: 'flex', gap: '1.2rem', marginBottom: '0.2rem' }}>
+                                             <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', fontSize: '0.85rem' }}>
+                                                 <input
+                                                     type="radio"
+                                                     name="voxcpmModeAgent"
+                                                     checked={!voice || voice === 'biaoge' || voice === 'boniu' || voice === 'liuxi'}
+                                                     onChange={() => setVoice('biaoge')}
+                                                     style={{ accentColor: 'var(--accent-primary)' }}
+                                                 />
+                                                 <span>使用预设音色</span>
+                                             </label>
+                                             <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', fontSize: '0.85rem' }}>
+                                                 <input
+                                                     type="radio"
+                                                     name="voxcpmModeAgent"
+                                                     checked={voice && voice !== 'biaoge' && voice !== 'boniu' && voice !== 'liuxi'}
+                                                     onChange={() => setVoice('')}
+                                                     style={{ accentColor: 'var(--accent-primary)' }}
+                                                 />
+                                                 <span>自定义音色描述</span>
+                                             </label>
+                                         </div>
+
+                                         {(!voice || voice === 'biaoge' || voice === 'boniu' || voice === 'liuxi') ? (
+                                             <select
+                                                 value={voice || 'biaoge'}
+                                                 onChange={(e) => setVoice(e.target.value)}
+                                                 style={{
+                                                     width: '100%',
+                                                     padding: '0.8rem',
+                                                     borderRadius: '8px',
+                                                     border: '1px solid rgba(255,255,255,0.1)',
+                                                     background: 'rgba(0,0,0,0.2)',
+                                                     color: 'white',
+                                                     outline: 'none'
+                                                 }}
+                                             >
+                                                 <option value="biaoge" style={{ background: '#1e1e24', color: 'white' }}>表哥 — 成熟男性，沉稳磁性</option>
+                                                 <option value="boniu" style={{ background: '#1e1e24', color: 'white' }}>波妞 — 成熟男性，播音腔调</option>
+                                                 <option value="liuxi" style={{ background: '#1e1e24', color: 'white' }}>柳溪 — 年轻女性，温柔甜美</option>
+                                             </select>
+                                          ) : (
+                                              <input
+                                                  type="text"
+                                                  placeholder="如：年轻男性，声音磁性沉稳，语调自然"
+                                                  value={voice}
+                                                  onChange={(e) => setVoice(e.target.value)}
+                                                  style={{
+                                                      width: '100%',
+                                                      padding: '0.8rem',
+                                                      borderRadius: '8px',
+                                                      border: '1px solid rgba(255,255,255,0.1)',
+                                                      background: 'rgba(0,0,0,0.2)',
+                                                      color: 'white',
+                                                      outline: 'none'
+                                                  }}
+                                              />
+                                          )}
+                                         <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.6 }}>
+                                              💡 <b>VoxCPM:</b> 选择预设音色，或输入自定义音色描述（如"年轻男性，声音沉稳"）来控制音色风格。
+                                         </p>
+                                     </div>
+                                 ) : (
+                                     <input
+                                         type="text"
+                                         placeholder="Voice Name / Seed"
+                                         value={voice}
+                                         onChange={(e) => setVoice(e.target.value)}
+                                         style={{
+                                             width: '100%',
+                                             padding: '0.8rem',
+                                             borderRadius: '8px',
+                                             border: '1px solid rgba(255,255,255,0.1)',
+                                             background: 'rgba(0,0,0,0.2)',
+                                             color: 'white',
+                                             outline: 'none'
+                                         }}
+                                     />
+                                 )}
+                             </div>
+                         )}
                     </div>
                     
                     <div style={{ gridColumn: '1 / -1', marginBottom: '1rem' }}>

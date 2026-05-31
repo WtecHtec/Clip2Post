@@ -23,3 +23,4 @@ onnxruntime
 soundfile
 scipy
 ChatTTS
+voxcpm
