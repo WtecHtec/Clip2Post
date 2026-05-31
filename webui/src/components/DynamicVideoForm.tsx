@@ -56,6 +56,9 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
     const [maxRetries, setMaxRetries] = useState(() => parseInt(localStorage.getItem('dynamic-video-maxRetries') || '1'));
     const [aspectRatio, setAspectRatio] = useState<'9:16' | '16:9'>(() => (localStorage.getItem('dynamic-video-aspectRatio') as '9:16' | '16:9') || '9:16');
     const [userAssets, setUserAssets] = useState<{ file: File; description: string; type: 'image' | 'video'; previewUrl: string }[]>([]);
+    // OmniVoice: 'instruct' = style, 'clone' = voice cloning
+    const [omnivoiceMode, setOmnivoiceMode] = useState<'instruct' | 'clone'>('instruct');
+    const [omnivoiceCloneSource, setOmnivoiceCloneSource] = useState<'preset' | 'upload'>('preset');
 
     useEffect(() => {
         localStorage.setItem('dynamic-video-prompt', prompt);
@@ -504,7 +507,7 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
                                         <input
                                             type="radio"
                                             name="voxcpmModeDynamic"
-                                            checked={!voice || voice === 'biaoge' || voice === 'boniu' || voice === 'liuxi'}
+                                            checked={!!(!voice || voice === 'biaoge' || voice === 'boniu' || voice === 'liuxi')}
                                             onChange={() => setVoice('biaoge')}
                                             style={{ accentColor: 'var(--accent-primary)' }}
                                         />
@@ -514,7 +517,7 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
                                         <input
                                             type="radio"
                                             name="voxcpmModeDynamic"
-                                            checked={voice && voice !== 'biaoge' && voice !== 'boniu' && voice !== 'liuxi'}
+                                            checked={!!(voice && voice !== 'biaoge' && voice !== 'boniu' && voice !== 'liuxi')}
                                             onChange={() => setVoice('')}
                                             style={{ accentColor: 'var(--accent-primary)' }}
                                         />
@@ -558,6 +561,23 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
                                     />
                                 )}
                             </div>
+                        ) : ttsEngine === 'omnivoice' && omnivoiceMode === 'clone' ? (
+                            <input
+                                type="text"
+                                placeholder="参考音频路径（在下方「克隆参考音频」区域上传 WAV 后自动填写）"
+                                value={voice}
+                                readOnly
+                                style={{
+                                    width: '100%',
+                                    padding: '0.8rem',
+                                    borderRadius: '8px',
+                                    border: '1px solid var(--border-color)',
+                                    background: 'var(--bg-secondary)',
+                                    color: 'var(--text-secondary)',
+                                    outline: 'none',
+                                    cursor: 'default'
+                                }}
+                            />
                         ) : (
                             <input
                                 type="text"
@@ -616,39 +636,174 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
                         )}
 
                         {ttsEngine === 'omnivoice' && (
-                            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginTop: '1rem' }}>
-                                <div style={{ flex: 1, minWidth: '150px' }}>
-                                    <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '0.5rem' }}>Voice Style Preset (声音风格预设)</span>
-                                    <select
-                                        value={voice}
-                                        onChange={(e) => setVoice(e.target.value)}
-                                        style={{
-                                            width: '100%',
-                                            padding: '0.8rem',
-                                            borderRadius: '8px',
-                                            border: '1px solid var(--border-color)',
-                                            background: 'var(--bg-secondary)',
-                                            color: 'var(--text-primary)'
-                                        }}
-                                    >
-                                        <option value="" disabled>请选择或在上方自定义输入</option>
-                                        <option value="女, 青年">女声默认 (女)</option>
-                                        <option value="男, 青年">男声默认 (男)</option>
-                                        <option value="女，低音调">女声 - 低音 (女，低音调)</option>
-                                        <option value="男，低音调">男声 - 低音 (男，低音调)</option>
-                                        <option value="女，高音调">女声 - 高音 (女，高音调)</option>
-                                        <option value="男，高音调">男声 - 高音 (男，高音调)</option>
-                                        <option value="女，东北话">女声 - 东北话 (女，东北话)</option>
-                                        <option value="男，东北话">男声 - 东北话 (男，东北话)</option>
-                                        <option value="女，四川话">女声 - 四川话 (女，四川话)</option>
-                                        <option value="男，四川话">男声 - 四川话 (男，四川话)</option>
-                                        <option value="女，耳语">女声 - 耳语 (女，耳语)</option>
-                                        <option value="男，耳语">男声 - 耳语 (男，耳语)</option>
-                                        <option value="儿童">儿童声 (儿童)</option>
-                                        <option value="女，老年">女声 - 老年 (女，老年)</option>
-                                        <option value="男，老年">男声 - 老年 (男，老年)</option>
-                                    </select>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', marginTop: '1rem' }}>
+                                {/* Mode selector */}
+                                <div style={{ display: 'flex', gap: '1.2rem' }}>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', fontSize: '0.85rem' }}>
+                                        <input
+                                            type="radio"
+                                            name="omnivoiceModeDynamic"
+                                            checked={omnivoiceMode !== 'clone'}
+                                            onChange={() => { setOmnivoiceMode('instruct'); setVoice(''); }}
+                                            style={{ accentColor: 'var(--accent-primary)' }}
+                                        />
+                                        <span>风格指令</span>
+                                    </label>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', fontSize: '0.85rem' }}>
+                                        <input
+                                            type="radio"
+                                            name="omnivoiceModeDynamic"
+                                            checked={omnivoiceMode === 'clone'}
+                                            onChange={() => { setOmnivoiceMode('clone'); setOmnivoiceCloneSource('preset'); setVoice('biaoge'); }}
+                                            style={{ accentColor: 'var(--accent-primary)' }}
+                                        />
+                                        <span>克隆参考音频</span>
+                                    </label>
                                 </div>
+
+                                {omnivoiceMode !== 'clone' ? (
+                                    /* Style instruction preset dropdown */
+                                    <div>
+                                        <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '0.5rem' }}>声音风格预设 (Voice Style Preset)</span>
+                                        <select
+                                            value={voice}
+                                            onChange={(e) => setVoice(e.target.value)}
+                                            style={{
+                                                width: '100%',
+                                                padding: '0.8rem',
+                                                borderRadius: '8px',
+                                                border: '1px solid var(--border-color)',
+                                                background: 'var(--bg-secondary)',
+                                                color: 'var(--text-primary)',
+                                                outline: 'none'
+                                            }}
+                                        >
+                                            <option value="" disabled>请选择或在上方自定义输入</option>
+                                            <option value="女, 青年">女声默认 (女)</option>
+                                            <option value="男, 青年">男声默认 (男)</option>
+                                            <option value="女，低音调">女声 - 低音 (女，低音调)</option>
+                                            <option value="男，低音调">男声 - 低音 (男，低音调)</option>
+                                            <option value="女，高音调">女声 - 高音 (女，高音调)</option>
+                                            <option value="男，高音调">男声 - 高音 (男，高音调)</option>
+                                            <option value="女，东北话">女声 - 东北话 (女，东北话)</option>
+                                            <option value="男，东北话">男声 - 东北话 (男，东北话)</option>
+                                            <option value="女，四川话">女声 - 四川话 (女，四川话)</option>
+                                            <option value="男，四川话">男声 - 四川话 (男，四川话)</option>
+                                            <option value="女，耳语">女声 - 耳语 (女，耳语)</option>
+                                            <option value="男，耳语">男声 - 耳语 (男，耳语)</option>
+                                            <option value="儿童">儿童声 (儿童)</option>
+                                            <option value="女，老年">女声 - 老年 (女，老年)</option>
+                                            <option value="男，老年">男声 - 老年 (男，老年)</option>
+                                        </select>
+                                    </div>
+                                ) : (
+                                    /* Voice cloning — choose preset or upload custom WAV reference file */
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                                        {/* Sub-mode selector */}
+                                        <div style={{ display: 'flex', gap: '1.2rem', marginBottom: '0.2rem' }}>
+                                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', fontSize: '0.85rem' }}>
+                                                <input
+                                                    type="radio"
+                                                    name="omnivoiceCloneSourceDynamic"
+                                                    checked={omnivoiceCloneSource === 'preset'}
+                                                    onChange={() => { setOmnivoiceCloneSource('preset'); setVoice('biaoge'); }}
+                                                    style={{ accentColor: 'var(--accent-primary)' }}
+                                                />
+                                                <span>使用预设音频</span>
+                                            </label>
+                                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', fontSize: '0.85rem' }}>
+                                                <input
+                                                    type="radio"
+                                                    name="omnivoiceCloneSourceDynamic"
+                                                    checked={omnivoiceCloneSource === 'upload'}
+                                                    onChange={() => { setOmnivoiceCloneSource('upload'); setVoice(''); }}
+                                                    style={{ accentColor: 'var(--accent-primary)' }}
+                                                />
+                                                <span>自定义上传音频</span>
+                                            </label>
+                                        </div>
+
+                                        {omnivoiceCloneSource === 'preset' ? (
+                                            /* Preset selector */
+                                            <div>
+                                                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '0.5rem' }}>预设参考音色 (Preset Reference Audio)</span>
+                                                <select
+                                                    value={voice || 'biaoge'}
+                                                    onChange={(e) => setVoice(e.target.value)}
+                                                    style={{
+                                                        width: '100%',
+                                                        padding: '0.8rem',
+                                                        borderRadius: '8px',
+                                                        border: '1px solid var(--border-color)',
+                                                        background: 'var(--bg-secondary)',
+                                                        color: 'var(--text-primary)',
+                                                        outline: 'none'
+                                                    }}
+                                                >
+                                                    <option value="biaoge">表哥 — 成熟男性，沉稳磁性 (biaoge.wav)</option>
+                                                    <option value="boniu">波妞 — 成熟男性，播音腔调 (boniu.wav)</option>
+                                                    <option value="liuxi">柳溪 — 年轻女性，温柔甜美 (liuxi.wav)</option>
+                                                </select>
+                                            </div>
+                                        ) : (
+                                            /* WAV upload */
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                                                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => document.getElementById('omnivoice-file-upload-dynamic')?.click()}
+                                                        style={{
+                                                            padding: '0.8rem 1.4rem',
+                                                            borderRadius: '8px',
+                                                            background: 'var(--accent-primary, #6366f1)',
+                                                            color: '#fff',
+                                                            border: 'none',
+                                                            cursor: 'pointer',
+                                                            fontSize: '0.85rem',
+                                                            fontWeight: 600
+                                                        }}
+                                                    >
+                                                        📂 上传参考 WAV
+                                                    </button>
+                                                    {voice && (
+                                                        <span style={{ fontSize: '0.8rem', color: '#10b981' }}>
+                                                            ✅ {voice.split('/').pop()}
+                                                        </span>
+                                                    )}
+                                                    <input
+                                                        id="omnivoice-file-upload-dynamic"
+                                                        type="file"
+                                                        accept=".wav"
+                                                        style={{ display: 'none' }}
+                                                        onChange={async (e) => {
+                                                            const file = e.target.files?.[0];
+                                                            if (!file) return;
+                                                            const formData = new FormData();
+                                                            formData.append('file', file);
+                                                            try {
+                                                                const response = await fetch('/api/upload_voice', {
+                                                                    method: 'POST',
+                                                                    body: formData
+                                                                });
+                                                                const data = await response.json();
+                                                                if (data.success) {
+                                                                    setVoice(data.absolute_path);
+                                                                } else {
+                                                                    alert(`上传失败: ${data.error || '未知错误'}`);
+                                                                }
+                                                            } catch (err) {
+                                                                alert(`网络请求失败: ${err}`);
+                                                            }
+                                                        }}
+                                                    />
+                                                </div>
+                                                <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.6 }}>
+                                                    上传一段 WAV 参考音频，OmniVoice 将自动用 Whisper 识别参考文字，无需手动输入。
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         )}
 
@@ -724,7 +879,7 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
                                 <p style={{ margin: 0 }}>💡 <b>Kokoro:</b> 输入声音 ID，如 <i>af_heart</i>, <i>am_adam</i>。</p>
                             )}
                             {ttsEngine === 'omnivoice' && (
-                                <p style={{ margin: 0 }}>💡 <b>OmniVoice:</b> 输入声音风格，中文如 <i>女，低音调</i>（全角逗号分隔），英文如 <i>female, low pitch</i>。</p>
+                                <p style={{ margin: 0 }}>💡 <b>OmniVoice:</b> 风格模式下输入如 <i>女，低音调</i>（全角逗号分隔），或者使用克隆模式上传 WAV 进行零样本（Zero-Shot）音色克隆。</p>
                             )}
                             {ttsEngine === 'voxcpm' && (
                                 <p style={{ margin: 0 }}>💡 <b>VoxCPM:</b> 可选择下方预设音色，或者上传自定义音频进行零样本（Zero-Shot）音色克隆。</p>

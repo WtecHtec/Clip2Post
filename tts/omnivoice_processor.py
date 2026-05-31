@@ -132,11 +132,40 @@ def run_omnivoice_tts_sync(text, output_base_path, voice_instruct="", ref_audio=
     global _global_omnivoice_processor
     if _global_omnivoice_processor is None:
         _global_omnivoice_processor = OmniVoiceProcessor()
-    
+
+    # Map preset names to their wav paths
+    preset_wavs = {
+        "biaoge": "tts/voxcpmwav/biaoge.wav",
+        "boniu": "tts/voxcpmwav/boniu.wav",
+        "liuxi": "tts/voxcpmwav/liuxi.wav"
+    }
+
+    if voice_instruct:
+        voice_instruct_stripped = voice_instruct.strip()
+        if voice_instruct_stripped in preset_wavs:
+            voice_instruct = preset_wavs[voice_instruct_stripped]
+
+    # Auto-detect cloning mode: if voice_instruct is an existing .wav file path,
+    # route it to ref_audio (zero-shot voice cloning) instead of style instruction.
+    # This lets the frontend simply upload a file and put its path in the `voice` field
+    # without requiring any API schema changes.
+    if voice_instruct and not ref_audio:
+        candidate = Path(voice_instruct.strip())
+        if not candidate.is_absolute():
+            project_root = Path(__file__).resolve().parent.parent
+            resolved_candidate = project_root / candidate
+            if resolved_candidate.is_file():
+                candidate = resolved_candidate
+
+        if candidate.suffix.lower() == ".wav" and candidate.is_file():
+            ref_audio = str(candidate.resolve())
+            voice_instruct = ""
+            print(f"  [OmniVoice] Auto-detected ref_audio from path: {ref_audio}")
+
     return _global_omnivoice_processor.generate(
-        text, 
-        output_base_path, 
-        voice_instruct=voice_instruct, 
-        ref_audio=ref_audio, 
-        ref_text=ref_text
+        text,
+        output_base_path,
+        voice_instruct=voice_instruct,
+        ref_audio=ref_audio,
+        ref_text=ref_text,
     )
