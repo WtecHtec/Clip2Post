@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Sparkles, Wand2, ImagePlus, X, Loader2, MessageSquare, Mic, Play } from 'lucide-react';
-import { generateAgentVideo, generateAIScript } from '../api';
+import { generateAgentVideo, generateAIScript, getAssetUrl } from '../api';
 import type { LLMSettings } from '../api';
 
 interface AgentVideoFormProps {
@@ -636,6 +636,31 @@ export const AgentVideoForm: React.FC<AgentVideoFormProps> = ({ llmSettings, onT
                                 <option key={b} value={b}>{b}</option>
                             ))}
                         </select>
+                        {bgm && (
+                            <div style={{ 
+                                marginTop: '0.8rem', 
+                                padding: '0.6rem', 
+                                background: 'rgba(255, 255, 255, 0.02)', 
+                                borderRadius: '8px', 
+                                border: '1px solid rgba(255, 255, 255, 0.05)',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '0.4rem'
+                            }}>
+                                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                    <span>🎧 预听背景音乐:</span>
+                                    <span style={{ color: 'var(--text-primary)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '250px' }} title={bgm}>
+                                        {bgm}
+                                    </span>
+                                </div>
+                                <audio
+                                    key={bgm}
+                                    src={getAssetUrl(`/bgm/${bgm}`)}
+                                    controls
+                                    style={{ width: '100%', height: '36px' }}
+                                />
+                            </div>
+                        )}
                     </div>
 
                     <div>
