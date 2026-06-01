@@ -6,6 +6,7 @@ import { MyScene, MySceneSchema } from './MyScene';
 import { ImageScene, ImageSceneSchema } from './ImageScene';
 import { NewsScene, NewsSceneSchema } from './NewsScene';
 import { AITemplate } from './demo/AITemplate';
+import { VoiceoverScene, VoiceoverSceneSchema } from './VoiceoverScene';
 
 export const RemotionRoot = () => {
 	return (
@@ -102,6 +103,24 @@ export const RemotionRoot = () => {
 					imageUrl: 'tasks/dummy_image.jpg',
 					coverTitle: '突发新闻',
 					endingTitle: '谢谢观看',
+				}}
+			/>
+			<Composition
+				id="VoiceoverScene"
+				component={VoiceoverScene}
+				durationInFrames={300}
+				fps={30}
+				width={1080}
+				height={1920}
+				schema={VoiceoverSceneSchema}
+				defaultProps={{
+					title: '口播视频标题测试',
+					captions: [
+						{ text: '欢迎来到素材口播模式', startMs: 0, endMs: 2000 },
+						{ text: '这是一个非常强大的视频生成工具', startMs: 2100, endMs: 5000 },
+					],
+					theme: 'dark',
+					images: ['tasks/dummy_image.jpg'],
 				}}
 			/>
 		</>

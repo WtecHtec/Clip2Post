@@ -22,8 +22,8 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
         return cached || initialPrompt || '帮我生成一期关于AI和人工智能的视频';
     });
 
-    const [mode, setMode] = useState<'prompt' | 'json'>(() => {
-        return (localStorage.getItem('dynamic-video-mode') as 'prompt' | 'json') || 'prompt';
+    const [mode, setMode] = useState<'prompt' | 'json' | 'voiceover'>(() => {
+        return (localStorage.getItem('dynamic-video-mode') as 'prompt' | 'json' | 'voiceover') || 'prompt';
     });
 
     const [jsonPrompt, setJsonPrompt] = useState(() => {
@@ -39,6 +39,18 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
             fontMode: 'default',
             captions: '这里是口播文案，TTS 将会自动把这段文字转化为语音，并合成到 Remotion 视频中。'
         }, null, 2);
+    });
+
+    const [voiceoverTitle, setVoiceoverTitle] = useState(() => {
+        return localStorage.getItem('dynamic-video-voiceoverTitle') || '口播视频标题';
+    });
+
+    const [voiceoverText, setVoiceoverText] = useState(() => {
+        return localStorage.getItem('dynamic-video-voiceoverText') || '这里是您的口播字幕文案，TTS 将会自动把这段文字转化为语音，并作为字幕显示在视频中。';
+    });
+
+    const [voiceoverTheme, setVoiceoverTheme] = useState(() => {
+        return localStorage.getItem('dynamic-video-voiceoverTheme') || 'dark';
     });
 
     const [ttsEngine, setTtsEngine] = useState(() => localStorage.getItem('dynamic-video-ttsEngine') || 'edge');
@@ -75,7 +87,10 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
         localStorage.setItem('dynamic-video-speed', speed.toString());
         localStorage.setItem('dynamic-video-maxRetries', maxRetries.toString());
         localStorage.setItem('dynamic-video-aspectRatio', aspectRatio);
-    }, [prompt, jsonPrompt, mode, ttsEngine, voice, preset, refineText, bgm, temperature, topP, topK, speed, maxRetries, aspectRatio]);
+        localStorage.setItem('dynamic-video-voiceoverTitle', voiceoverTitle);
+        localStorage.setItem('dynamic-video-voiceoverText', voiceoverText);
+        localStorage.setItem('dynamic-video-voiceoverTheme', voiceoverTheme);
+    }, [prompt, jsonPrompt, mode, ttsEngine, voice, preset, refineText, bgm, temperature, topP, topK, speed, maxRetries, aspectRatio, voiceoverTitle, voiceoverText, voiceoverTheme]);
 
     useEffect(() => {
         import('../api').then(mod => mod.getBgms().then(setBgmList));
@@ -181,15 +196,31 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
                 alert('JSON 格式错误，请检查！\n' + e.message);
                 return;
             }
+        } else if (mode === 'voiceover') {
+            if (!voiceoverTitle.trim()) {
+                alert('请填写标题！');
+                return;
+            }
+            if (!voiceoverText.trim()) {
+                alert('请填写口播文案！');
+                return;
+            }
+            finalPrompt = JSON.stringify({
+                title: voiceoverTitle,
+                voiceoverText: voiceoverText,
+                theme: voiceoverTheme
+            });
         } else {
             if (!prompt.trim()) return;
         }
         
-        // Ensure all descriptions are filled
-        const missingDesc = userAssets.some(asset => !asset.description.trim());
-        if (missingDesc) {
-            alert('请为所有素材填写描述 (Descriptions are mandatory)');
-            return;
+        // Ensure all descriptions are filled (only mandatory in LLM prompt mode)
+        if (mode === 'prompt') {
+            const missingDesc = userAssets.some(asset => !asset.description.trim());
+            if (missingDesc) {
+                alert('请为所有素材填写描述 (Descriptions are mandatory)');
+                return;
+            }
         }
 
         onGenerate({
@@ -203,9 +234,9 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
             speed,
             refine_text: refineText,
             bgm: bgm !== 'none' ? bgm : undefined,
-            aspectRatio,
+            aspectRatio: mode === 'voiceover' ? '9:16' : aspectRatio,
             files: userAssets.map(asset => asset.file),
-            imageDescriptions: JSON.stringify(userAssets.map(asset => asset.description)),
+            imageDescriptions: JSON.stringify(userAssets.map(asset => asset.description || '')),
             maxRetries
         });
     };
@@ -218,7 +249,7 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
                 </h4>
                 <select
                     value={mode}
-                    onChange={(e) => setMode(e.target.value as 'prompt' | 'json')}
+                    onChange={(e) => setMode(e.target.value as 'prompt' | 'json' | 'voiceover')}
                     style={{
                         width: '100%',
                         padding: '0.8rem',
@@ -231,10 +262,11 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
                 >
                     <option value="prompt">大模型提示词模式 (Prompt Mode)</option>
                     <option value="json">直接输入数据结构模式 (Direct JSON Mode)</option>
+                    <option value="voiceover">素材口播模式 (Voiceover Mode)</option>
                 </select>
             </div>
 
-            {mode === 'prompt' ? (
+            {mode === 'prompt' && (
                 <div style={{ marginBottom: '1.5rem', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
                     <h4 className="section-title" style={{ marginBottom: '1rem', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                         <Sparkles size={18} /> LLM 提示词 (Prompt)
@@ -261,7 +293,9 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
                         />
                     </div>
                 </div>
-            ) : (
+            )}
+
+            {mode === 'json' && (
                 <div style={{ marginBottom: '1.5rem', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
                     <h4 className="section-title" style={{ marginBottom: '1rem', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                         <Type size={18} /> 数据结构 JSON (Template Props)
@@ -294,33 +328,117 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
                 </div>
             )}
 
-            <div style={{ marginBottom: '1.5rem', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                <h4 className="section-title" style={{ marginBottom: '1rem', fontSize: '1rem' }}>📐 视频比例 (Aspect Ratio)</h4>
-                <div style={{ display: 'flex', gap: '2rem' }}>
-                    <label className="radio-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                        <input
-                            type="radio"
-                            name="aspectRatio"
-                            value="9:16"
-                            checked={aspectRatio === '9:16'}
-                            onChange={() => setAspectRatio('9:16')}
-                            style={{ accentColor: 'var(--accent-primary)' }}
-                        />
-                        <span>9:16 (竖屏 / Portrait)</span>
-                    </label>
-                    <label className="radio-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                        <input
-                            type="radio"
-                            name="aspectRatio"
-                            value="16:9"
-                            checked={aspectRatio === '16:9'}
-                            onChange={() => setAspectRatio('16:9')}
-                            style={{ accentColor: 'var(--accent-primary)' }}
-                        />
-                        <span>16:9 (横屏 / Landscape)</span>
-                    </label>
+            {mode === 'voiceover' && (
+                <>
+                    {/* Title Input */}
+                    <div style={{ marginBottom: '1.5rem', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                        <h4 className="section-title" style={{ marginBottom: '1rem', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <Type size={18} /> 口播视频标题配置 (Video Title)
+                        </h4>
+                        <div>
+                            <input
+                                type="text"
+                                value={voiceoverTitle}
+                                onChange={(e) => setVoiceoverTitle(e.target.value)}
+                                placeholder="请输入视频标题..."
+                                style={{
+                                    width: '100%',
+                                    padding: '0.8rem',
+                                    borderRadius: '8px',
+                                    border: '1px solid var(--border-color)',
+                                    background: 'rgba(0,0,0,0.3)',
+                                    color: 'var(--text-primary)',
+                                    outline: 'none',
+                                    fontSize: '1rem'
+                                }}
+                            />
+                        </div>
+                    </div>
+
+                    {/* Voiceover text area */}
+                    <div style={{ marginBottom: '1.5rem', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                        <h4 className="section-title" style={{ marginBottom: '1rem', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <Sparkles size={18} /> 口播字幕文案 (Voiceover Text)
+                        </h4>
+                        <div>
+                            <textarea
+                                value={voiceoverText}
+                                onChange={(e) => setVoiceoverText(e.target.value)}
+                                placeholder="输入用于生成口播语音和底端字幕的文案内容..."
+                                style={{
+                                    width: '100%',
+                                    minHeight: '120px',
+                                    padding: '1rem',
+                                    borderRadius: '12px',
+                                    border: '1px solid var(--border-color)',
+                                    backgroundColor: 'rgba(0,0,0,0.3)',
+                                    color: 'var(--text-primary)',
+                                    fontSize: '1rem',
+                                    lineHeight: '1.6',
+                                    outline: 'none',
+                                    resize: 'vertical'
+                                }}
+                            />
+                        </div>
+                    </div>
+
+                    {/* Theme preset selector */}
+                    <div style={{ marginBottom: '1.5rem', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                        <h4 className="section-title" style={{ marginBottom: '1rem', fontSize: '1rem' }}>🎨 预设主题 (Preset Theme Style)</h4>
+                        <div>
+                            <select
+                                value={voiceoverTheme}
+                                onChange={(e) => setVoiceoverTheme(e.target.value)}
+                                style={{
+                                    width: '100%',
+                                    padding: '0.8rem',
+                                    borderRadius: '8px',
+                                    border: '1px solid var(--border-color)',
+                                    background: 'rgba(0,0,0,0.3)',
+                                    color: 'var(--text-primary)',
+                                    outline: 'none'
+                                }}
+                            >
+                                <option value="dark">暗黑极简 (黑色背景，白色文字)</option>
+                                <option value="red">热情活力 (红色背景，白色文字)</option>
+                                <option value="bright">明亮极简 (白色背景，黑色文字)</option>
+                                <option value="purple">优雅紫色 (紫色背景，白色文字)</option>
+                                <option value="green">清新绿色 (绿色背景，白色文字)</option>
+                            </select>
+                        </div>
+                    </div>
+                </>
+            )}
+
+            {mode !== 'voiceover' && (
+                <div style={{ marginBottom: '1.5rem', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                    <h4 className="section-title" style={{ marginBottom: '1rem', fontSize: '1rem' }}>📐 视频比例 (Aspect Ratio)</h4>
+                    <div style={{ display: 'flex', gap: '2rem' }}>
+                        <label className="radio-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                            <input
+                                type="radio"
+                                name="aspectRatio"
+                                value="9:16"
+                                checked={aspectRatio === '9:16'}
+                                onChange={() => setAspectRatio('9:16')}
+                                style={{ accentColor: 'var(--accent-primary)' }}
+                            />
+                            <span>9:16 (竖屏 / Portrait)</span>
+                        </label>
+                        <label className="radio-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                            <input
+                                type="radio"
+                                name="aspectRatio"
+                                value="16:9"
+                                checked={aspectRatio === '16:9'}
+                                onChange={() => setAspectRatio('16:9')}
+                                style={{ accentColor: 'var(--accent-primary)' }}
+                            />
+                            <span>16:9 (横屏 / Landscape)</span>
+                        </label>
+                    </div>
                 </div>
-            </div>
+            )}
 
             <div style={{ marginBottom: '1.5rem', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
                 <h4 className="section-title" style={{ marginBottom: '1rem', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -912,7 +1030,11 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
                 <button
                     className="btn-primary"
                     onClick={handleSubmit}
-                    disabled={disabled || (mode === 'prompt' ? !prompt.trim() : !jsonPrompt.trim())}
+                    disabled={disabled || (
+                        mode === 'prompt' ? !prompt.trim() :
+                        mode === 'json' ? !jsonPrompt.trim() :
+                        (!voiceoverTitle.trim() || !voiceoverText.trim())
+                    )}
                     style={{ width: '100%', marginTop: '1.5rem' }}
                 >
                     {submitLabel}

@@ -276,6 +276,133 @@ def process_dynamic_video_pipeline(
     """Background task for LLM Dynamic Template Video generation."""
     task_manager = TaskManager(task_id=task_id)
     try:
+        if mode == "voiceover":
+            # 1. Parse JSON
+            import json, re
+            from pathlib import Path
+            try:
+                template_props = json.loads(prompt)
+            except Exception as e:
+                raise ValueError(f"Failed to parse prompt as JSON: {e}")
+
+            # 2. TTS Generation on template_props.get("voiceoverText")
+            voiceover_text = template_props.get("voiceoverText") or "No narration content"
+            voiceover_text = re.sub(r'([a-zA-Z0-9])\.([a-zA-Z0-9])', r'\1点\2', voiceover_text)
+            
+            task_manager.update_status(0.3, f"正在进行语音合成 ({tts_engine})...", "processing")
+            task_dir = task_manager.get_dir("")
+            output_base = task_dir / "audio" / "tts_output"
+            output_base.parent.mkdir(parents=True, exist_ok=True)
+            
+            if tts_engine == "chattts":
+                from tts.chattts_processor import run_chattts_sync
+                audio_path, json_path = run_chattts_sync(
+                    voiceover_text, str(output_base), voice=voice,
+                    temperature=temperature, top_p=top_p, top_k=top_k, 
+                    speed=speed, refine_text_flag=refine_text
+                )
+            elif tts_engine == "omnivoice":
+                from tts.omnivoice_processor import run_omnivoice_tts_sync
+                audio_path, json_path = run_omnivoice_tts_sync(voiceover_text, str(output_base), voice_instruct=voice)
+            elif tts_engine == "voxcpm":
+                audio_path, json_path = run_voxcpm_tts_sync(voiceover_text, str(output_base), voice=voice)
+            elif tts_engine == "kokoro":
+                from tts.kokoro_processor import run_kokoro_tts_sync
+                voice_k = voice or "af_heart"
+                audio_path, json_path = run_kokoro_tts_sync(voiceover_text, str(output_base), voice=voice_k)
+            else:
+                voice_e = voice or "zh-CN-XiaoxiaoNeural"
+                from tts.processor import run_tts_sync
+                audio_path, json_path = run_tts_sync(voiceover_text, str(output_base), voice=voice_e)
+
+            # 3. Read captions JSON for duration calculation
+            with open(json_path, 'r', encoding='utf-8') as f:
+                captions_timing = json.load(f)
+            
+            # Clean Chinese and English punctuation from captions
+            import re
+            for c in captions_timing:
+                if "text" in c:
+                    c["text"] = re.sub(r'\[.*?\]\s*', '', c["text"]).strip()
+                    c["text"] = re.sub(r'[，。！？、；：“”‘’（）《》【】.,!?;:\'\"()\[\]<>\-~]', '', c["text"]).strip()
+            
+            # Map user uploaded assets to images and videos
+            images_list = []
+            videos_list = []
+            assets_list = []
+            if user_assets:
+                for asset in user_assets:
+                    # Construct paths relative to remotion public dir via symlink
+                    asset_rel = f"tasks/{task_id}/assets/{Path(asset['url']).name}"
+                    assets_list.append({
+                        "url": asset_rel,
+                        "type": asset['type']
+                    })
+                    if asset['type'] == 'video':
+                        videos_list.append(asset_rel)
+                    else:
+                        images_list.append(asset_rel)
+
+            audio_rel_path = f"tasks/{task_id}/audio/{Path(audio_path).name}"
+            
+            # Combine the user template_props with calculated assets and audio
+            props = {
+                "title": template_props.get("title", ""),
+                "theme": template_props.get("theme", "dark"),
+                "captions": captions_timing,
+                "audioPath": audio_rel_path,
+                "images": images_list,
+                "videos": videos_list,
+                "assets": assets_list,
+            }
+            if bgm:
+                props["bgmPath"] = bgm
+            
+            # Save props to shuo.json (under task audio folder)
+            audio_dir = task_manager.get_dir("audio")
+            shuo_json_path = audio_dir / "shuo.json"
+            with open(shuo_json_path, 'w', encoding='utf-8') as f:
+                json.dump(props, f, ensure_ascii=False, indent=2)
+
+            # Also save to remotion_props.json for consistency
+            props_path = task_dir / "remotion_props.json"
+            with open(props_path, 'w', encoding='utf-8') as f:
+                json.dump(props, f, ensure_ascii=False, indent=2)
+
+            task_manager.update_status(0.6, "正在合成视频...", "processing")
+            
+            # Calculate max video asset duration
+            max_video_duration_ms = 0
+            if user_assets:
+                import ffmpeg
+                for asset in user_assets:
+                    if asset.get('type') == 'video':
+                        filename = Path(asset['url']).name
+                        local_path = task_dir / "assets" / filename
+                        if local_path.exists():
+                            try:
+                                probe = ffmpeg.probe(str(local_path))
+                                duration = float(probe['format']['duration'])
+                                max_video_duration_ms = max(max_video_duration_ms, int(duration * 1000))
+                            except Exception as e:
+                                print(f"Error probing video {local_path}: {e}")
+
+            video_output = task_manager.get_dir("videos") / "remotion_video.mp4"
+            total_duration_ms = captions_timing[-1]["endMs"] if captions_timing else 3000
+            
+            # If the video asset duration is longer than speech, use video duration as final duration
+            if max_video_duration_ms > total_duration_ms:
+                total_duration_ms = max_video_duration_ms
+            
+            # Add small buffer of 15 frames for safety
+            duration_frames = int((total_duration_ms / 1000) * 30) + 15
+            
+            from video.remotion_renderer import run_remotion_render
+            run_remotion_render(shuo_json_path, video_output, duration_frames=duration_frames, composition_id="VoiceoverScene")
+            
+            task_manager.update_status(1.0, "合成成功！", "completed")
+            return
+
         if mode == "json":
             # 1. Parse JSON
             import json, re
@@ -318,6 +445,13 @@ def process_dynamic_video_pipeline(
             # 3. Read captions JSON for duration calculation
             with open(json_path, 'r', encoding='utf-8') as f:
                 captions_timing = json.load(f)
+            
+            # Clean Chinese and English punctuation from captions
+            import re
+            for c in captions_timing:
+                if "text" in c:
+                    c["text"] = re.sub(r'\[.*?\]\s*', '', c["text"]).strip()
+                    c["text"] = re.sub(r'[，。！？、；：“”‘’（）《》【】.,!?;:\'\"()\[\]<>\-~]', '', c["text"]).strip()
             
             # Map user uploaded assets to images and videos
             images_list = []
@@ -1628,8 +1762,8 @@ def process_regeneration_task(task_id: str):
         with open(meta_path, "r", encoding="utf-8") as f:
             meta = json.load(f)
             
-        if meta.get("mode") == "json":
-            # Direct JSON re-rendering!
+        if meta.get("mode") in ("json", "voiceover"):
+            # Direct JSON / Voiceover re-rendering!
             task_manager.update_status(0.2, "正在重新合成视频...", "processing")
             
             # Read props
@@ -1654,15 +1788,35 @@ def process_regeneration_task(task_id: str):
                 total_duration_ms = captions_timing[-1]["endMs"] if captions_timing else 3000
             else:
                 total_duration_ms = 3000
+
+            # Calculate max video asset duration for regeneration
+            max_video_duration_ms = 0
+            if meta.get("mode") == "voiceover":
+                import ffmpeg
+                for v in props.get("videos", []):
+                    filename = Path(v).name
+                    local_path = task_dir / "assets" / filename
+                    if local_path.exists():
+                        try:
+                            probe = ffmpeg.probe(str(local_path))
+                            duration = float(probe['format']['duration'])
+                            max_video_duration_ms = max(max_video_duration_ms, int(duration * 1000))
+                        except Exception as e:
+                            print(f"Error probing video {local_path}: {e}")
+
+            if max_video_duration_ms > total_duration_ms:
+                total_duration_ms = max_video_duration_ms
                 
-            duration_frames = int((total_duration_ms / 1000) * 30) + 60
+            duration_frames = int((total_duration_ms / 1000) * 30) + 15
             
             import time
             timestamp = time.strftime("%Y%m%d_%H%M%S")
             video_output = task_dir / "videos" / f"remotion_video_regen_{timestamp}.mp4"
             
+            comp_id = "VoiceoverScene" if meta.get("mode") == "voiceover" else "AITemplate"
+            
             from video.remotion_renderer import run_remotion_render
-            run_remotion_render(shuo_json_path, video_output, duration_frames=duration_frames, composition_id="AITemplate")
+            run_remotion_render(shuo_json_path, video_output, duration_frames=duration_frames, composition_id=comp_id)
             
             default_output = task_dir / "videos" / "remotion_video.mp4"
             import shutil

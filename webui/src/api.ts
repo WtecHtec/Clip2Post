@@ -372,7 +372,7 @@ export interface DynamicVideoOptions {
   files?: File[];
   imageDescriptions?: string;
   maxRetries?: number;
-  mode?: 'prompt' | 'json';
+  mode?: 'prompt' | 'json' | 'voiceover';
 }
 
 export const generateDynamicVideo = async (options: DynamicVideoOptions): Promise<string> => {
