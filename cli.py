@@ -24,7 +24,7 @@ def main():
     source_group.add_argument("--url", "-u", type=str, help="URL of the video to download (e.g., YouTube, X, TikTok)")
     source_group.add_argument("--tts", type=str, help="Generate Audio + JSON from the provided text")
     
-    parser.add_argument("--tts-engine", type=str, choices=["edge", "kokoro", "chattts", "omnivoice"], default="edge", help="TTS engine to use (default: edge)")
+    parser.add_argument("--tts-engine", type=str, choices=["edge", "kokoro", "chattts", "omnivoice", "mlx"], default="edge", help="TTS engine to use (default: edge)")
     parser.add_argument("--render", action="store_true", help="Render video using Remotion after TTS (requires --tts)")
     parser.add_argument("--voice", type=str, help="Voice/Seed to use for TTS (defaults depend on engine)")
     parser.add_argument("--asr", type=str, choices=["funasr", "faster-whisper", "whisperx"], help="ASR engine to use")
@@ -64,6 +64,10 @@ def main():
                 from tts.omnivoice_processor import run_omnivoice_tts_sync
                 voice = args.voice or ""
                 audio_path, json_path = run_omnivoice_tts_sync(args.tts, str(output_base), voice_instruct=voice)
+            elif args.tts_engine == "mlx":
+                from tts.mlx_processor import run_mlx_tts_sync
+                voice = args.voice or ""
+                audio_path, json_path = run_mlx_tts_sync(args.tts, str(output_base), voice=voice)
             else:
                 voice = args.voice or "zh-CN-XiaoxiaoNeural"
                 audio_path, json_path = run_tts_sync(args.tts, str(output_base), voice=voice)

@@ -26,6 +26,8 @@ export const AgentVideoForm: React.FC<AgentVideoFormProps> = ({ llmSettings, onT
     // TTS Settings
     const [ttsEngine, setTtsEngine] = useState('edge');
     const [voice, setVoice] = useState('');
+    const [mlxModel, setMlxModel] = useState('mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-bf16');
+    const [mlxVoice, setMlxVoice] = useState('Vivian');
     // OmniVoice: 'instruct' = style, 'clone' = voice cloning
     const [omnivoiceMode, setOmnivoiceMode] = useState<'instruct' | 'clone'>('instruct');
     const [omnivoiceCloneSource, setOmnivoiceCloneSource] = useState<'preset' | 'upload'>('preset');
@@ -36,6 +38,12 @@ export const AgentVideoForm: React.FC<AgentVideoFormProps> = ({ llmSettings, onT
     const [refineText, setRefineText] = useState(true);
     const [bgm, setBgm] = useState<string>('');
     const [bgmList, setBgmList] = useState<string[]>([]);
+
+    useEffect(() => {
+        if (ttsEngine === 'mlx') {
+            setVoice(`${mlxModel}:${mlxVoice}`);
+        }
+    }, [ttsEngine, mlxModel, mlxVoice]);
 
     React.useEffect(() => {
         import('../api').then(mod => mod.getBgms().then(setBgmList));
@@ -298,7 +306,7 @@ export const AgentVideoForm: React.FC<AgentVideoFormProps> = ({ llmSettings, onT
                             <Mic size={18} /> 语音引擎
                         </h4>
                         <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
-                            {['edge', 'chattts', 'kokoro', 'omnivoice', 'voxcpm'].map(engine => (
+                            {['edge', 'chattts', 'kokoro', 'omnivoice', 'voxcpm', 'mlx'].map(engine => (
                                 <label key={engine} style={{
                                     cursor: 'pointer',
                                     padding: '0.5rem 1rem',
@@ -313,6 +321,7 @@ export const AgentVideoForm: React.FC<AgentVideoFormProps> = ({ llmSettings, onT
                                         else if (engine === 'kokoro') setVoice('af_heart');
                                         else if (engine === 'omnivoice') setVoice('女');
                                         else if (engine === 'voxcpm') setVoice('A young female, gentle and sweet voice');
+                                        else if (engine === 'mlx') setVoice('mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-bf16:Vivian');
                                         else setVoice('');
                                     }} style={{ display: 'none' }} />
                                     {engine.toUpperCase()}
@@ -356,6 +365,81 @@ export const AgentVideoForm: React.FC<AgentVideoFormProps> = ({ llmSettings, onT
                                 <option value="af_alloy">af_alloy</option>
                                 <option value="am_adam">am_adam</option>
                             </select>
+                        ) : ttsEngine === "mlx" ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', width: '100%' }}>
+                                <div>
+                                    <span style={{ fontSize: '0.8rem', opacity: 0.6, display: 'block', marginBottom: '0.4rem' }}>模型 (Model)</span>
+                                    <select
+                                        value={mlxModel}
+                                        onChange={(e) => {
+                                            const model = e.target.value;
+                                            setMlxModel(model);
+                                            if (model.includes('Kokoro')) {
+                                                setMlxVoice('af_heart');
+                                            } else {
+                                                setMlxVoice('Vivian');
+                                            }
+                                        }}
+                                        style={{
+                                            width: '100%',
+                                            padding: '0.8rem',
+                                            borderRadius: '8px',
+                                            border: '1px solid rgba(255,255,255,0.1)',
+                                            background: 'rgba(0,0,0,0.2)',
+                                            color: 'white',
+                                            outline: 'none'
+                                        }}
+                                    >
+                                        <option value="mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-bf16">Qwen3-TTS 0.6B (默认/快速)</option>
+                                        <option value="mlx-community/Qwen3-TTS-12Hz-1.7B-CustomVoice-bf16">Qwen3-TTS 1.7B (高音质)</option>
+                                        <option value="mlx-community/Kokoro-82M-bf16">Kokoro-82M (MLX版)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <span style={{ fontSize: '0.8rem', opacity: 0.6, display: 'block', marginBottom: '0.4rem' }}>音色 (Voice)</span>
+                                    {mlxModel.includes('Kokoro') ? (
+                                        <select
+                                            value={mlxVoice}
+                                            onChange={(e) => setMlxVoice(e.target.value)}
+                                            style={{
+                                                width: '100%',
+                                                padding: '0.8rem',
+                                                borderRadius: '8px',
+                                                border: '1px solid rgba(255,255,255,0.1)',
+                                                background: 'rgba(0,0,0,0.2)',
+                                                color: 'white',
+                                                outline: 'none'
+                                            }}
+                                        >
+                                            <option value="af_heart">af_heart (默认女声)</option>
+                                            <option value="af_alloy">af_alloy (年轻女声)</option>
+                                            <option value="am_adam">am_adam (英文男声)</option>
+                                        </select>
+                                    ) : (
+                                        <select
+                                            value={mlxVoice}
+                                            onChange={(e) => setMlxVoice(e.target.value)}
+                                            style={{
+                                                width: '100%',
+                                                padding: '0.8rem',
+                                                borderRadius: '8px',
+                                                border: '1px solid rgba(255,255,255,0.1)',
+                                                background: 'rgba(0,0,0,0.2)',
+                                                color: 'white',
+                                                outline: 'none'
+                                            }}
+                                        >
+                                            <option value="Vivian">Vivian (默认女声)</option>
+                                            <option value="Serena">Serena (年轻女声)</option>
+                                            <option value="Uncle_Fu">Uncle_Fu (成熟男声)</option>
+                                            <option value="Ryan">Ryan (英文男声)</option>
+                                            <option value="Aiden">Aiden (英文男声)</option>
+                                            <option value="Dylan">Dylan (北京方言男声)</option>
+                                            <option value="Eric">Eric (四川方言男声)</option>
+                                        </select>
+                                    )}
+                                </div>
+                            </div>
                         ) : ttsEngine === "omnivoice" ? (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', width: '100%' }}>
                                 {/* Mode selector */}

@@ -31,6 +31,14 @@ export const ImageVideoForm: React.FC<ImageVideoFormProps> = ({
     const [coverTitle, setCoverTitle] = useState("");
     const [bgm, setBgm] = useState<string>('');
     const [bgmList, setBgmList] = useState<string[]>([]);
+    const [mlxModel, setMlxModel] = useState('mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-bf16');
+    const [mlxVoice, setMlxVoice] = useState('Vivian');
+
+    useEffect(() => {
+        if (ttsEngine === 'mlx') {
+            setVoice(`${mlxModel}:${mlxVoice}`);
+        }
+    }, [ttsEngine, mlxModel, mlxVoice]);
 
     useEffect(() => {
         import('../api').then(mod => mod.getBgms().then(setBgmList));
@@ -254,6 +262,7 @@ export const ImageVideoForm: React.FC<ImageVideoFormProps> = ({
                             else if (newEngine === 'kokoro') setVoice('af_heart');
                             else if (newEngine === 'omnivoice') setVoice('女');
                             else if (newEngine === 'voxcpm') setVoice('A young female, gentle and sweet voice');
+                            else if (newEngine === 'mlx') setVoice('mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-bf16:Vivian');
                             else setVoice('');
                         }}
                         disabled={disabled}
@@ -272,6 +281,7 @@ export const ImageVideoForm: React.FC<ImageVideoFormProps> = ({
                         <option value="omnivoice">OmniVoice (小米星辰)</option>
                         <option value="chattts">ChatTTS</option>
                         <option value="kokoro">Kokoro</option>
+                        <option value="mlx">MLX Audio</option>
                     </select>
                 </div>
                 <div>
@@ -315,6 +325,84 @@ export const ImageVideoForm: React.FC<ImageVideoFormProps> = ({
                             <option value="af_alloy">af_alloy</option>
                             <option value="am_adam">am_adam</option>
                         </select>
+                    ) : ttsEngine === "mlx" ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', width: '100%' }}>
+                            <div>
+                                <span style={{ fontSize: '0.8rem', opacity: 0.6, display: 'block', marginBottom: '0.4rem' }}>模型 (Model)</span>
+                                <select
+                                    value={mlxModel}
+                                    onChange={(e) => {
+                                        const model = e.target.value;
+                                        setMlxModel(model);
+                                        if (model.includes('Kokoro')) {
+                                            setMlxVoice('af_heart');
+                                        } else {
+                                            setMlxVoice('Vivian');
+                                        }
+                                    }}
+                                    disabled={disabled}
+                                    style={{
+                                        width: '100%',
+                                        padding: '0.8rem',
+                                        borderRadius: '8px',
+                                        border: '1px solid var(--border-color)',
+                                        background: 'rgba(255, 255, 255, 0.05)',
+                                        color: 'var(--text-primary)',
+                                        outline: 'none'
+                                    }}
+                                >
+                                    <option value="mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-bf16">Qwen3-TTS 0.6B (默认/快速)</option>
+                                    <option value="mlx-community/Qwen3-TTS-12Hz-1.7B-CustomVoice-bf16">Qwen3-TTS 1.7B (高音质)</option>
+                                    <option value="mlx-community/Kokoro-82M-bf16">Kokoro-82M (MLX版)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <span style={{ fontSize: '0.8rem', opacity: 0.6, display: 'block', marginBottom: '0.4rem' }}>音色 (Voice)</span>
+                                {mlxModel.includes('Kokoro') ? (
+                                    <select
+                                        value={mlxVoice}
+                                        onChange={(e) => setMlxVoice(e.target.value)}
+                                        disabled={disabled}
+                                        style={{
+                                            width: '100%',
+                                            padding: '0.8rem',
+                                            borderRadius: '8px',
+                                            border: '1px solid var(--border-color)',
+                                            background: 'rgba(255, 255, 255, 0.05)',
+                                            color: 'var(--text-primary)',
+                                            outline: 'none'
+                                        }}
+                                    >
+                                        <option value="af_heart">af_heart (默认女声)</option>
+                                        <option value="af_alloy">af_alloy (年轻女声)</option>
+                                        <option value="am_adam">am_adam (英文男声)</option>
+                                    </select>
+                                ) : (
+                                    <select
+                                        value={mlxVoice}
+                                        onChange={(e) => setMlxVoice(e.target.value)}
+                                        disabled={disabled}
+                                        style={{
+                                            width: '100%',
+                                            padding: '0.8rem',
+                                            borderRadius: '8px',
+                                            border: '1px solid var(--border-color)',
+                                            background: 'rgba(255, 255, 255, 0.05)',
+                                            color: 'var(--text-primary)',
+                                            outline: 'none'
+                                        }}
+                                    >
+                                        <option value="Vivian">Vivian (默认女声)</option>
+                                        <option value="Serena">Serena (年轻女声)</option>
+                                        <option value="Uncle_Fu">Uncle_Fu (成熟男声)</option>
+                                        <option value="Ryan">Ryan (英文男声)</option>
+                                        <option value="Aiden">Aiden (英文男声)</option>
+                                        <option value="Dylan">Dylan (北京方言男声)</option>
+                                        <option value="Eric">Eric (四川方言男声)</option>
+                                    </select>
+                                )}
+                            </div>
+                        </div>
                     ) : ttsEngine === "omnivoice" ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', width: '100%' }}>
                             {/* Mode selector */}

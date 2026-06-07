@@ -24,3 +24,6 @@ soundfile
 scipy
 ChatTTS
 voxcpm
+mlx-audio
+misaki[zh,en]
+num2words

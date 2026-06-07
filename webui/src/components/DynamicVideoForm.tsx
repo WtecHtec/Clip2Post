@@ -56,10 +56,18 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
 
     const [ttsEngine, setTtsEngine] = useState(() => localStorage.getItem('dynamic-video-ttsEngine') || 'edge');
     const [voice, setVoice] = useState(() => localStorage.getItem('dynamic-video-voice') || '');
+    const [mlxModel, setMlxModel] = useState('mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-bf16');
+    const [mlxVoice, setMlxVoice] = useState('Vivian');
     const [preset, setPreset] = useState(() => localStorage.getItem('dynamic-video-preset') || 'default');
     const [refineText, setRefineText] = useState(() => localStorage.getItem('dynamic-video-refineText') === 'false' ? false : true);
     const [bgm, setBgm] = useState<string>(() => localStorage.getItem('dynamic-video-bgm') || '');
     const [bgmList, setBgmList] = useState<string[]>([]);
+
+    useEffect(() => {
+        if (ttsEngine === 'mlx') {
+            setVoice(`${mlxModel}:${mlxVoice}`);
+        }
+    }, [ttsEngine, mlxModel, mlxVoice]);
 
     // Advanced parameters
     const [temperature, setTemperature] = useState(() => parseFloat(localStorage.getItem('dynamic-video-temperature') || '0.3'));
@@ -622,6 +630,17 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
                             />
                             <span>VoxCPM (Tokenizer-Free Local Model)</span>
                         </label>
+                        <label className="radio-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                            <input
+                                type="radio"
+                                name="ttsEngine"
+                                value="mlx"
+                                checked={ttsEngine === 'mlx'}
+                                onChange={() => { setTtsEngine('mlx'); setVoice('mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-bf16:Vivian'); }}
+                                style={{ accentColor: 'var(--accent-primary)' }}
+                            />
+                            <span>MLX Audio (Apple Silicon Local)</span>
+                        </label>
                     </div>
 
                     <div style={{ flex: 1, minWidth: '200px' }}>
@@ -705,6 +724,81 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
                                     />
                                 )}
                             </div>
+                        ) : ttsEngine === 'mlx' ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', width: '100%' }}>
+                                <div>
+                                    <span style={{ fontSize: '0.8rem', opacity: 0.6, display: 'block', marginBottom: '0.4rem' }}>模型 (Model)</span>
+                                    <select
+                                        value={mlxModel}
+                                        onChange={(e) => {
+                                            const model = e.target.value;
+                                            setMlxModel(model);
+                                            if (model.includes('Kokoro')) {
+                                                setMlxVoice('af_heart');
+                                            } else {
+                                                setMlxVoice('Vivian');
+                                            }
+                                        }}
+                                        style={{
+                                            width: '100%',
+                                            padding: '0.8rem',
+                                            borderRadius: '8px',
+                                            border: '1px solid var(--border-color)',
+                                            background: 'var(--bg-secondary)',
+                                            color: 'var(--text-primary)',
+                                            outline: 'none'
+                                        }}
+                                    >
+                                        <option value="mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-bf16">Qwen3-TTS 0.6B (默认/快速)</option>
+                                        <option value="mlx-community/Qwen3-TTS-12Hz-1.7B-CustomVoice-bf16">Qwen3-TTS 1.7B (高音质)</option>
+                                        <option value="mlx-community/Kokoro-82M-bf16">Kokoro-82M (MLX版)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <span style={{ fontSize: '0.8rem', opacity: 0.6, display: 'block', marginBottom: '0.4rem' }}>音色 (Voice)</span>
+                                    {mlxModel.includes('Kokoro') ? (
+                                        <select
+                                            value={mlxVoice}
+                                            onChange={(e) => setMlxVoice(e.target.value)}
+                                            style={{
+                                                width: '100%',
+                                                padding: '0.8rem',
+                                                borderRadius: '8px',
+                                                border: '1px solid var(--border-color)',
+                                                background: 'var(--bg-secondary)',
+                                                color: 'var(--text-primary)',
+                                                outline: 'none'
+                                            }}
+                                        >
+                                            <option value="af_heart">af_heart (默认女声)</option>
+                                            <option value="af_alloy">af_alloy (年轻女声)</option>
+                                            <option value="am_adam">am_adam (英文男声)</option>
+                                        </select>
+                                    ) : (
+                                        <select
+                                            value={mlxVoice}
+                                            onChange={(e) => setMlxVoice(e.target.value)}
+                                            style={{
+                                                width: '100%',
+                                                padding: '0.8rem',
+                                                borderRadius: '8px',
+                                                border: '1px solid var(--border-color)',
+                                                background: 'var(--bg-secondary)',
+                                                color: 'var(--text-primary)',
+                                                outline: 'none'
+                                            }}
+                                        >
+                                            <option value="Vivian">Vivian (默认女声)</option>
+                                            <option value="Serena">Serena (年轻女声)</option>
+                                            <option value="Uncle_Fu">Uncle_Fu (成熟男声)</option>
+                                            <option value="Ryan">Ryan (英文男声)</option>
+                                            <option value="Aiden">Aiden (英文男声)</option>
+                                            <option value="Dylan">Dylan (北京方言男声)</option>
+                                            <option value="Eric">Eric (四川方言男声)</option>
+                                        </select>
+                                    )}
+                                </div>
+                            </div>
                         ) : ttsEngine === 'omnivoice' && omnivoiceMode === 'clone' ? (
                             <input
                                 type="text"
@@ -725,7 +819,7 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
                         ) : (
                             <input
                                 type="text"
-                                placeholder={ttsEngine === 'kokoro' ? "e.g. af_heart, jm_kama..." : (ttsEngine === 'chattts' ? "Seed number or empty" : (ttsEngine === 'omnivoice' ? "e.g. female, british accent" : (ttsEngine === 'voxcpm' ? "Enter description or path to .wav file" : "e.g. zh-CN-XiaoxiaoNeural...")))}
+                                placeholder={ttsEngine === 'kokoro' ? "e.g. af_heart, jm_kama..." : (ttsEngine === 'chattts' ? "Seed number or empty" : (ttsEngine === 'omnivoice' ? "e.g. female, british accent" : (ttsEngine === 'voxcpm' ? "Enter description or path to .wav file" : (ttsEngine === 'mlx' ? "e.g. Vivian, Serena..." : "e.g. zh-CN-XiaoxiaoNeural..."))))}
                                 value={voice}
                                 onChange={(e) => setVoice(e.target.value)}
                                 style={{

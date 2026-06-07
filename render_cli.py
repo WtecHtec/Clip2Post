@@ -54,6 +54,9 @@ def process_scenes_and_generate_tts(task_id, scenes, meta, clean_punctuation=Tru
     elif tts_engine == "voxcpm":
         from tts.voxcpm_processor import run_voxcpm_tts_sync
         audio_path, json_path = run_voxcpm_tts_sync(voiceover_text, str(output_base), voice=voice)
+    elif tts_engine == "mlx":
+        from tts.mlx_processor import run_mlx_tts_sync
+        audio_path, json_path = run_mlx_tts_sync(voiceover_text, str(output_base), voice=voice)
     else:
         voice = voice or "zh-CN-XiaoxiaoNeural"
         from tts.processor import run_tts_sync

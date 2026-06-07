@@ -20,6 +20,7 @@ from utils.html_builder import build_html_article
 from tts.processor import run_tts_sync
 from tts.kokoro_processor import run_kokoro_tts_sync
 from tts.voxcpm_processor import run_voxcpm_tts_sync
+from tts.mlx_processor import run_mlx_tts_sync
 from video.remotion_renderer import run_remotion_render
 import json
 
@@ -206,6 +207,8 @@ def process_tts_render_pipeline(
             audio_path, json_path = run_omnivoice_tts_sync(text, str(output_base), voice_instruct=voice)
         elif tts_engine == "voxcpm":
             audio_path, json_path = run_voxcpm_tts_sync(text, str(output_base), voice=voice)
+        elif tts_engine == "mlx":
+            audio_path, json_path = run_mlx_tts_sync(text, str(output_base), voice=voice, speed=speed)
         else:
             voice = voice or "zh-CN-XiaoxiaoNeural"
             audio_path, json_path = run_tts_sync(text, str(output_base), voice=voice)
@@ -306,6 +309,8 @@ def process_dynamic_video_pipeline(
                 audio_path, json_path = run_omnivoice_tts_sync(voiceover_text, str(output_base), voice_instruct=voice)
             elif tts_engine == "voxcpm":
                 audio_path, json_path = run_voxcpm_tts_sync(voiceover_text, str(output_base), voice=voice)
+            elif tts_engine == "mlx":
+                audio_path, json_path = run_mlx_tts_sync(voiceover_text, str(output_base), voice=voice, speed=speed)
             elif tts_engine == "kokoro":
                 from tts.kokoro_processor import run_kokoro_tts_sync
                 voice_k = voice or "af_heart"
@@ -433,6 +438,8 @@ def process_dynamic_video_pipeline(
                 audio_path, json_path = run_omnivoice_tts_sync(voiceover_text, str(output_base), voice_instruct=voice)
             elif tts_engine == "voxcpm":
                 audio_path, json_path = run_voxcpm_tts_sync(voiceover_text, str(output_base), voice=voice)
+            elif tts_engine == "mlx":
+                audio_path, json_path = run_mlx_tts_sync(voiceover_text, str(output_base), voice=voice, speed=speed)
             elif tts_engine == "kokoro":
                 from tts.kokoro_processor import run_kokoro_tts_sync
                 voice_k = voice or "af_heart"
@@ -583,6 +590,8 @@ def process_dynamic_video_pipeline(
             audio_path, json_path = run_omnivoice_tts_sync(voiceover_text, str(output_base), voice_instruct=voice)
         elif tts_engine == "voxcpm":
             audio_path, json_path = run_voxcpm_tts_sync(voiceover_text, str(output_base), voice=voice)
+        elif tts_engine == "mlx":
+            audio_path, json_path = run_mlx_tts_sync(voiceover_text, str(output_base), voice=voice, speed=speed)
         else:
             voice = voice or "zh-CN-XiaoxiaoNeural"
             from tts.processor import run_tts_sync
@@ -1026,6 +1035,8 @@ def process_agent_video_pipeline(
             audio_path, json_path = run_omnivoice_tts_sync(text, str(output_base), voice_instruct=voice)
         elif tts_engine == "voxcpm":
             audio_path, json_path = run_voxcpm_tts_sync(text, str(output_base), voice=voice)
+        elif tts_engine == "mlx":
+            audio_path, json_path = run_mlx_tts_sync(text, str(output_base), voice=voice, speed=speed)
         else:
             voice = voice or "zh-CN-XiaoxiaoNeural"
             audio_path, json_path = run_tts_sync(text, str(output_base), voice=voice)
@@ -1214,6 +1225,8 @@ def process_image_video_pipeline(
             audio_path, json_path = run_omnivoice_tts_sync(text, str(output_base), voice_instruct=voice)
         elif tts_engine == "voxcpm":
             audio_path, json_path = run_voxcpm_tts_sync(text, str(output_base), voice=voice)
+        elif tts_engine == "mlx":
+            audio_path, json_path = run_mlx_tts_sync(text, str(output_base), voice=voice, speed=speed)
         else:
             voice = voice or "zh-CN-XiaoxiaoNeural"
             from tts.processor import run_tts_sync
@@ -1332,6 +1345,8 @@ def process_news_video_pipeline(
             audio_path, json_path = run_omnivoice_tts_sync(combined_text, str(output_base), voice_instruct=voice)
         elif tts_engine == "voxcpm":
             audio_path, json_path = run_voxcpm_tts_sync(combined_text, str(output_base), voice=voice)
+        elif tts_engine == "mlx":
+            audio_path, json_path = run_mlx_tts_sync(combined_text, str(output_base), voice=voice, speed=speed)
         else:
             voice = voice or "zh-CN-XiaoxiaoNeural"
             from tts.processor import run_tts_sync
@@ -1728,6 +1743,8 @@ async def generate_tts_api(
             audio_path, json_path = run_omnivoice_tts_sync(text, output_base, voice_instruct=voice)
         elif tts_engine == "voxcpm":
             audio_path, json_path = run_voxcpm_tts_sync(text, output_base, voice=voice)
+        elif tts_engine == "mlx":
+            audio_path, json_path = run_mlx_tts_sync(text, output_base, voice=voice, speed=speed)
         else:
             voice = voice or "zh-CN-XiaoxiaoNeural"
             from tts.processor import run_tts_sync
