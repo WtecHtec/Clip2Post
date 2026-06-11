@@ -12,4 +12,6 @@ export interface TemplateProps {
   audioPath?: string;      // 生成的语音路径
   bgmPath?: string;        // 背景音乐路径
   fontMode?: string;       // 字体模式，支持 'default' | 'pixel' | 'techy' | 'cute'
+  bgImage?: string;        // 背景图像文件名或URL
+  bgImageOpacity?: number; // 背景图像不透明度，默认 0.15
 }

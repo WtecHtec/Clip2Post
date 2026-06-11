@@ -46,6 +46,11 @@ _BGM_DIR = Path(__file__).parent / "bgm"
 _BGM_DIR.mkdir(exist_ok=True)
 app.mount("/bgm", StaticFiles(directory=str(_BGM_DIR)), name="bgm")
 
+# Mount bgImages directory for static file access
+_BGIMAGES_DIR = Path(__file__).parent / "bgImages"
+_BGIMAGES_DIR.mkdir(exist_ok=True)
+app.mount("/bgImages", StaticFiles(directory=str(_BGIMAGES_DIR)), name="bgImages")
+
 def process_video_pipeline(
     task_id: str, 
     video_path: Path, 
@@ -474,6 +479,19 @@ def process_dynamic_video_pipeline(
 
             audio_rel_path = f"tasks/{task_id}/audio/{Path(audio_path).name}"
             
+            # Check if there are background images in the bgImages folder
+            bg_images_dir = Path(__file__).parent / "bgImages"
+            bg_image = None
+            if bg_images_dir.exists():
+                valid_extensions = {".png", ".jpg", ".jpeg", ".webp"}
+                bg_files = sorted([f.name for f in bg_images_dir.iterdir() if f.is_file() and f.suffix.lower() in valid_extensions])
+                if bg_files:
+                    user_bg = template_props.get("bgImage")
+                    if user_bg and user_bg in bg_files:
+                        bg_image = user_bg
+                    else:
+                        bg_image = bg_files[0]
+
             # Combine the user template_props with calculated assets and audio
             props = {
                 **template_props,
@@ -481,6 +499,8 @@ def process_dynamic_video_pipeline(
                 "images": images_list if images_list else template_props.get("images", []),
                 "videos": videos_list if videos_list else template_props.get("videos", []),
             }
+            if bg_image:
+                props["bgImage"] = props.get("bgImage") or bg_image
             if bgm:
                 props["bgmPath"] = bgm
             
@@ -897,6 +917,19 @@ async def get_bgms():
     for ext in ("*.mp3", "*.wav", "*.m4a"):
         bgms.extend([f.name for f in bgm_dir.glob(ext)])
     return {"bgms": sorted(bgms)}
+
+@app.get("/api/bg_images")
+async def get_bg_images():
+    """List available background image files."""
+    bg_images_dir = Path("bgImages")
+    if not bg_images_dir.exists():
+        bg_images_dir.mkdir(exist_ok=True)
+    
+    bg_images = []
+    valid_extensions = ("*.png", "*.jpg", "*.jpeg", "*.webp")
+    for ext in valid_extensions:
+        bg_images.extend([f.name for f in bg_images_dir.glob(ext)])
+    return {"bg_images": sorted(bg_images)}
 
 @app.get("/api/status/{task_id}")
 async def get_status(task_id: str):

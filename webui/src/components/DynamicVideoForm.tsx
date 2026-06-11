@@ -38,6 +38,8 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
             progressPercent: 45,
             outroTagline: 'AI · 工具 · 变现',
             fontMode: 'default',
+            bgImage: 'image-01.png',
+            bgImageOpacity: 0.15,
             captions: '这里是口播文案，TTS 将会自动把这段文字转化为语音，并合成到 Remotion 视频中。'
         }, null, 2);
     });
@@ -62,6 +64,7 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
     const [refineText, setRefineText] = useState(() => localStorage.getItem('dynamic-video-refineText') === 'false' ? false : true);
     const [bgm, setBgm] = useState<string>(() => localStorage.getItem('dynamic-video-bgm') || '');
     const [bgmList, setBgmList] = useState<string[]>([]);
+    const [bgImageList, setBgImageList] = useState<string[]>([]);
 
     useEffect(() => {
         if (ttsEngine === 'mlx') {
@@ -102,7 +105,10 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
     }, [prompt, jsonPrompt, mode, ttsEngine, voice, preset, refineText, bgm, temperature, topP, topK, speed, maxRetries, aspectRatio, voiceoverTitle, voiceoverText, voiceoverTheme]);
 
     useEffect(() => {
-        import('../api').then(mod => mod.getBgms().then(setBgmList));
+        import('../api').then(mod => {
+            mod.getBgms().then(setBgmList);
+            mod.getBgImages().then(setBgImageList);
+        });
     }, []);
 
     useEffect(() => {
@@ -569,6 +575,100 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
                     )}
                 </div>
             </div>
+
+            {mode === 'json' && (
+                <div style={{ marginBottom: '1.5rem', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                    <h4 className="section-title" style={{ marginBottom: '1rem', fontSize: '1rem' }}>🖼️ 视频背景图片 (Background Image)</h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                        <div>
+                            <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>选择预设背景图片 (Preset Background Image)</label>
+                            <select
+                                value={(() => {
+                                    try {
+                                        return JSON.parse(jsonPrompt).bgImage || '';
+                                    } catch (e) {
+                                        return '';
+                                    }
+                                })()}
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    try {
+                                        const parsed = JSON.parse(jsonPrompt);
+                                        parsed.bgImage = val;
+                                        setJsonPrompt(JSON.stringify(parsed, null, 2));
+                                    } catch (err) {
+                                        alert('JSON 格式有误，请先修正 JSON 格式再选择图片。');
+                                    }
+                                }}
+                                style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'rgba(0,0,0,0.3)', color: 'var(--text-primary)', outline: 'none' }}
+                            >
+                                <option value="">使用默认首张背景图 (First Available)</option>
+                                {bgImageList.map(img => (
+                                    <option key={img} value={img}>{img}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
+                                <span>背景图片不透明度 (Opacity)</span>
+                                <span style={{ color: 'var(--accent-primary)' }}>
+                                    {(() => {
+                                        try {
+                                            const op = JSON.parse(jsonPrompt).bgImageOpacity;
+                                            return op !== undefined ? op : 0.15;
+                                        } catch (e) {
+                                            return 0.15;
+                                        }
+                                    })()}
+                                </span>
+                            </div>
+                            <input
+                                type="range"
+                                min="0"
+                                max="1"
+                                step="0.05"
+                                value={(() => {
+                                    try {
+                                        const op = JSON.parse(jsonPrompt).bgImageOpacity;
+                                        return op !== undefined ? op : 0.15;
+                                    } catch (e) {
+                                        return 0.15;
+                                    }
+                                })()}
+                                onChange={(e) => {
+                                    const val = parseFloat(e.target.value);
+                                    try {
+                                        const parsed = JSON.parse(jsonPrompt);
+                                        parsed.bgImageOpacity = val;
+                                        setJsonPrompt(JSON.stringify(parsed, null, 2));
+                                    } catch (err) {
+                                        // Ignore when JSON is invalid
+                                    }
+                                }}
+                                style={{ width: '100%', accentColor: 'var(--accent-primary)' }}
+                            />
+                        </div>
+                        {(() => {
+                            try {
+                                const bg = JSON.parse(jsonPrompt).bgImage;
+                                if (bg) {
+                                    return (
+                                        <div style={{ marginTop: '0.5rem', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '8px', padding: '0.5rem', background: 'rgba(0,0,0,0.2)' }}>
+                                            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '0.4rem' }}>背景预览 (Preview):</span>
+                                            <img 
+                                                src={getAssetUrl(`/bgImages/${bg}`)} 
+                                                alt="bg-preview" 
+                                                style={{ width: '100%', maxHeight: '150px', objectFit: 'contain', borderRadius: '4px' }} 
+                                            />
+                                        </div>
+                                    );
+                                }
+                            } catch (e) {}
+                            return null;
+                        })()}
+                    </div>
+                </div>
+            )}
 
             <div className="option-section">
                 <h4 className="section-title">🎙️ TTS Settings</h4>

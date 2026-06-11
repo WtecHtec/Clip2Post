@@ -304,6 +304,18 @@ export const getBgms = async (): Promise<string[]> => {
   }
 };
 
+export const getBgImages = async (): Promise<string[]> => {
+  try {
+    const res = await fetch(`${API_BASE_URL}/bg_images`);
+    if (!res.ok) throw new Error('Network error');
+    const data = await res.json();
+    return data.bg_images || [];
+  } catch (error) {
+    console.error('Error fetching background images:', error);
+    return [];
+  }
+};
+
 export interface NewsVideoOptions {
   openingHook?: string;
   mainText: string;

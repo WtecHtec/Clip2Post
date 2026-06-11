@@ -21,6 +21,7 @@ export const TitleScene: React.FC<TemplateProps> = ({
   videos = [],
   progressPercent = 25,
   fontMode,
+  bgImage,
 }) => {
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
@@ -60,10 +61,10 @@ export const TitleScene: React.FC<TemplateProps> = ({
       style={{
         width: CANVAS.width,
         height: CANVAS.height,
-        background: COLORS.bg,
+        background: bgImage ? 'transparent' : COLORS.bg,
         position: 'relative',
         overflow: 'hidden',
-        padding: '72px 100px',
+        padding: '72px 60px',
         fontFamily: fontFamily,
       }}
     >
@@ -99,8 +100,8 @@ export const TitleScene: React.FC<TemplateProps> = ({
         style={{
           position: 'absolute',
           top: 72,
-          left: 100,
-          right: 100,
+          left: 60,
+          right: 60,
           zIndex: 10,
         }}
       >
@@ -161,8 +162,8 @@ export const TitleScene: React.FC<TemplateProps> = ({
         style={{
           position: 'absolute',
           bottom: 72,
-          left: 100,
-          right: 100,
+          left: 60,
+          right: 60,
           height: 4,
           background: COLORS.progressBg,
           borderRadius: 2,

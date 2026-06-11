@@ -8,10 +8,11 @@ import {
 import { COLORS, CANVAS, getFontFamily } from '../styles';
 import { TemplateProps } from '../types';
 
-export const OutroScene: React.FC<Pick<TemplateProps, 'author' | 'outroTagline' | 'fontMode'>> = ({
+export const OutroScene: React.FC<Pick<TemplateProps, 'author' | 'outroTagline' | 'fontMode' | 'bgImage'>> = ({
   author,
   outroTagline = 'AI · 工具 · 变现',
   fontMode,
+  bgImage,
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -53,7 +54,7 @@ export const OutroScene: React.FC<Pick<TemplateProps, 'author' | 'outroTagline' 
       style={{
         width: CANVAS.width,
         height: CANVAS.height,
-        background: COLORS.bg,
+        background: bgImage ? 'transparent' : COLORS.bg,
         position: 'relative',
         overflow: 'hidden',
         display: 'flex',
@@ -114,8 +115,8 @@ export const OutroScene: React.FC<Pick<TemplateProps, 'author' | 'outroTagline' 
           flexDirection: 'column',
           alignItems: 'center',
           gap: 32,
-          paddingLeft: 100,
-          paddingRight: 100,
+          paddingLeft: 60,
+          paddingRight: 60,
           width: '100%',
           boxSizing: 'border-box',
         }}

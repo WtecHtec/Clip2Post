@@ -37,6 +37,16 @@ class RemotionRenderer:
             except Exception as e:
                 print(f"      Warning: Failed to create BGM symlink: {e}")
 
+        # 3. bgImages symlink
+        bgimages_symlink = public_dir / "bgImages"
+        if not bgimages_symlink.exists() and not bgimages_symlink.is_symlink():
+            try:
+                # Create a relative symlink: public/bgImages -> ../../../bgImages
+                os.symlink("../../../bgImages", bgimages_symlink)
+                print(f"      Created relative bgImages symlink: {bgimages_symlink} -> ../../../bgImages")
+            except Exception as e:
+                print(f"      Warning: Failed to create bgImages symlink: {e}")
+
     def render(self, props_path, output_path, duration_frames=300, composition_id="MyScene", entry_file="src/index.ts"):
         """
         Render video using Remotion CLI.
