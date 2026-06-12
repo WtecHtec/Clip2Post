@@ -1,5 +1,6 @@
 import React from 'react';
 import { Series, useVideoConfig, AbsoluteFill, Audio, staticFile } from 'remotion';
+import { Video } from '@remotion/media';
 import { TitleScene } from './components/TitleScene';
 import { OutroScene } from './components/OutroScene';
 import { TemplateProps } from './types';
@@ -17,10 +18,33 @@ export const AITemplate: React.FC<TemplateProps> = (props) => {
   const bgImage = props.bgImage;
   const bgImageUrl = bgImage ? (bgImage.startsWith('http') || bgImage.startsWith('/') ? bgImage : staticFile(`bgImages/${bgImage}`)) : null;
   const bgOpacity = props.bgImageOpacity !== undefined ? props.bgImageOpacity : 0.15;
+  const isVideoBg = bgImage && (
+    bgImage.endsWith('.mp4') || 
+    bgImage.endsWith('.webm') || 
+    bgImage.endsWith('.mov') || 
+    bgImage.endsWith('.m4v') || 
+    bgImage.endsWith('.avi')
+  );
 
   return (
     <AbsoluteFill style={{ backgroundColor: '#0A0A0E' }}>
-      {bgImageUrl && (
+      {bgImageUrl && isVideoBg && (
+        <AbsoluteFill style={{ zIndex: 0 }}>
+          <Video
+            src={bgImageUrl}
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              opacity: bgOpacity,
+            }}
+            loop
+            muted
+            volume={0}
+          />
+        </AbsoluteFill>
+      )}
+      {bgImageUrl && !isVideoBg && (
         <AbsoluteFill style={{ zIndex: 0 }}>
           <img
             src={bgImageUrl}

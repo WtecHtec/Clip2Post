@@ -483,7 +483,7 @@ def process_dynamic_video_pipeline(
             bg_images_dir = Path(__file__).parent / "bgImages"
             bg_image = None
             if bg_images_dir.exists():
-                valid_extensions = {".png", ".jpg", ".jpeg", ".webp"}
+                valid_extensions = {".png", ".jpg", ".jpeg", ".webp", ".mp4", ".webm", ".mov"}
                 bg_files = sorted([f.name for f in bg_images_dir.iterdir() if f.is_file() and f.suffix.lower() in valid_extensions])
                 if bg_files:
                     user_bg = template_props.get("bgImage")
@@ -926,7 +926,7 @@ async def get_bg_images():
         bg_images_dir.mkdir(exist_ok=True)
     
     bg_images = []
-    valid_extensions = ("*.png", "*.jpg", "*.jpeg", "*.webp")
+    valid_extensions = ("*.png", "*.jpg", "*.jpeg", "*.webp", "*.mp4", "*.webm", "*.mov")
     for ext in valid_extensions:
         bg_images.extend([f.name for f in bg_images_dir.glob(ext)])
     return {"bg_images": sorted(bg_images)}

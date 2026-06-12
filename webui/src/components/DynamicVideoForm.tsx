@@ -148,8 +148,8 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
     };
 
     const addAssets = (files: File[]) => {
-        const newFiles = files.map(file => ({ 
-            file, 
+        const newFiles = files.map(file => ({
+            file,
             description: '',
             type: file.type.startsWith('video/') ? 'video' as const : 'image' as const,
             previewUrl: URL.createObjectURL(file)
@@ -228,7 +228,7 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
         } else {
             if (!prompt.trim()) return;
         }
-        
+
         // Ensure all descriptions are filled (only mandatory in LLM prompt mode)
         if (mode === 'prompt') {
             const missingDesc = userAssets.some(asset => !asset.description.trim());
@@ -462,34 +462,34 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem' }}>
                         {userAssets.map((asset, idx) => (
-                            <div key={idx} style={{ 
-                                position: 'relative', 
-                                background: 'rgba(0,0,0,0.4)', 
-                                borderRadius: '12px', 
+                            <div key={idx} style={{
+                                position: 'relative',
+                                background: 'rgba(0,0,0,0.4)',
+                                borderRadius: '12px',
                                 padding: '0.75rem',
                                 border: '1px solid rgba(255,255,255,0.1)'
                             }}>
                                 <div style={{ position: 'relative', width: '100%', aspectRatio: '16/9', borderRadius: '8px', overflow: 'hidden', marginBottom: '0.75rem' }}>
                                     {asset.type === 'video' ? (
-                                        <video 
-                                            src={asset.previewUrl} 
+                                        <video
+                                            src={asset.previewUrl}
                                             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                                             muted
                                             controls
                                             autoPlay={false}
                                         />
                                     ) : (
-                                        <img 
-                                            src={asset.previewUrl} 
-                                            alt={`upload-${idx}`} 
+                                        <img
+                                            src={asset.previewUrl}
+                                            alt={`upload-${idx}`}
                                             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                                         />
                                     )}
-                                    <button 
+                                    <button
                                         onClick={() => handleRemoveAsset(idx)}
-                                        style={{ 
-                                            position: 'absolute', top: '5px', right: '5px', 
-                                            background: 'rgba(239, 68, 68, 0.8)', color: 'white', 
+                                        style={{
+                                            position: 'absolute', top: '5px', right: '5px',
+                                            background: 'rgba(239, 68, 68, 0.8)', color: 'white',
                                             border: 'none', borderRadius: '50%', padding: '5px',
                                             cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
                                         }}
@@ -503,9 +503,9 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
                                         value={asset.description}
                                         onChange={(e) => handleDescriptionChange(idx, e.target.value)}
                                         placeholder="例如：这是产品的正面特写..."
-                                        style={{ 
-                                            width: '100%', minHeight: '60px', padding: '0.5rem', 
-                                            borderRadius: '6px', background: 'rgba(0,0,0,0.3)', 
+                                        style={{
+                                            width: '100%', minHeight: '60px', padding: '0.5rem',
+                                            borderRadius: '6px', background: 'rgba(0,0,0,0.3)',
                                             color: 'white', border: '1px solid rgba(255,255,255,0.1)',
                                             fontSize: '0.85rem', outline: 'none', resize: 'none'
                                         }}
@@ -513,11 +513,11 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
                                 </div>
                             </div>
                         ))}
-                        <label style={{ 
-                            border: '2px dashed rgba(255,255,255,0.1)', 
-                            borderRadius: '12px', 
-                            display: 'flex', flexDirection: 'column', 
-                            alignItems: 'center', justifyContent: 'center', 
+                        <label style={{
+                            border: '2px dashed rgba(255,255,255,0.1)',
+                            borderRadius: '12px',
+                            display: 'flex', flexDirection: 'column',
+                            alignItems: 'center', justifyContent: 'center',
                             cursor: 'pointer', gap: '0.5rem',
                             minHeight: '150px',
                             transition: 'all 0.2s ease'
@@ -549,11 +549,11 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
                         ))}
                     </select>
                     {bgm && bgm !== 'none' && (
-                        <div style={{ 
-                            marginTop: '0.8rem', 
-                            padding: '0.6rem', 
-                            background: 'rgba(255, 255, 255, 0.02)', 
-                            borderRadius: '8px', 
+                        <div style={{
+                            marginTop: '0.8rem',
+                            padding: '0.6rem',
+                            background: 'rgba(255, 255, 255, 0.02)',
+                            borderRadius: '8px',
                             border: '1px solid rgba(255, 255, 255, 0.05)',
                             display: 'flex',
                             flexDirection: 'column',
@@ -578,10 +578,10 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
 
             {mode === 'json' && (
                 <div style={{ marginBottom: '1.5rem', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                    <h4 className="section-title" style={{ marginBottom: '1rem', fontSize: '1rem' }}>🖼️ 视频背景图片 (Background Image)</h4>
+                    <h4 className="section-title" style={{ marginBottom: '1rem', fontSize: '1rem' }}>🖼️ 视频背景图片/视频 (Background Image/Video)</h4>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                         <div>
-                            <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>选择预设背景图片 (Preset Background Image)</label>
+                            <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>选择预设背景图片/视频 (Preset Background Image/Video)</label>
                             <select
                                 value={(() => {
                                     try {
@@ -597,12 +597,12 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
                                         parsed.bgImage = val;
                                         setJsonPrompt(JSON.stringify(parsed, null, 2));
                                     } catch (err) {
-                                        alert('JSON 格式有误，请先修正 JSON 格式再选择图片。');
+                                        alert('JSON 格式有误，请先修正 JSON 格式再选择背景。');
                                     }
                                 }}
                                 style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'rgba(0,0,0,0.3)', color: 'var(--text-primary)', outline: 'none' }}
                             >
-                                <option value="">使用默认首张背景图 (First Available)</option>
+                                <option value="">使用默认首张背景图/视频 (First Available)</option>
                                 {bgImageList.map(img => (
                                     <option key={img} value={img}>{img}</option>
                                 ))}
@@ -610,7 +610,7 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
                         </div>
                         <div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
-                                <span>背景图片不透明度 (Opacity)</span>
+                                <span>背景不透明度 (Opacity)</span>
                                 <span style={{ color: 'var(--accent-primary)' }}>
                                     {(() => {
                                         try {
@@ -652,18 +652,30 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
                             try {
                                 const bg = JSON.parse(jsonPrompt).bgImage;
                                 if (bg) {
+                                    const isVideo = bg.endsWith('.mp4') || bg.endsWith('.webm') || bg.endsWith('.mov') || bg.endsWith('.m4v') || bg.endsWith('.avi');
                                     return (
                                         <div style={{ marginTop: '0.5rem', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '8px', padding: '0.5rem', background: 'rgba(0,0,0,0.2)' }}>
                                             <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '0.4rem' }}>背景预览 (Preview):</span>
-                                            <img 
-                                                src={getAssetUrl(`/bgImages/${bg}`)} 
-                                                alt="bg-preview" 
-                                                style={{ width: '100%', maxHeight: '150px', objectFit: 'contain', borderRadius: '4px' }} 
-                                            />
+                                            {isVideo ? (
+                                                <video
+                                                    src={getAssetUrl(`/bgImages/${bg}`)}
+                                                    style={{ width: '100%', maxHeight: '150px', objectFit: 'contain', borderRadius: '4px' }}
+                                                    muted
+                                                    controls
+                                                    autoPlay
+                                                    loop
+                                                />
+                                            ) : (
+                                                <img
+                                                    src={getAssetUrl(`/bgImages/${bg}`)}
+                                                    alt="bg-preview"
+                                                    style={{ width: '100%', maxHeight: '150px', objectFit: 'contain', borderRadius: '4px' }}
+                                                />
+                                            )}
                                         </div>
                                     );
                                 }
-                            } catch (e) {}
+                            } catch (e) { }
                             return null;
                         })()}
                     </div>
@@ -1252,8 +1264,8 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
                     onClick={handleSubmit}
                     disabled={disabled || (
                         mode === 'prompt' ? !prompt.trim() :
-                        mode === 'json' ? !jsonPrompt.trim() :
-                        (!voiceoverTitle.trim() || !voiceoverText.trim())
+                            mode === 'json' ? !jsonPrompt.trim() :
+                                (!voiceoverTitle.trim() || !voiceoverText.trim())
                     )}
                     style={{ width: '100%', marginTop: '1.5rem' }}
                 >
