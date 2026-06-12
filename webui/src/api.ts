@@ -385,6 +385,7 @@ export interface DynamicVideoOptions {
   imageDescriptions?: string;
   maxRetries?: number;
   mode?: 'prompt' | 'json' | 'voiceover';
+  alsoGenerateLandscape?: boolean;
 }
 
 export const generateDynamicVideo = async (options: DynamicVideoOptions): Promise<string> => {
@@ -411,6 +412,9 @@ export const generateDynamicVideo = async (options: DynamicVideoOptions): Promis
   }
   if (options.maxRetries !== undefined) {
     formData.append('max_retries', String(options.maxRetries));
+  }
+  if (options.alsoGenerateLandscape !== undefined) {
+    formData.append('also_generate_landscape', String(options.alsoGenerateLandscape));
   }
 
   const response = await fetch(`${API_BASE_URL}/dynamic_video`, {

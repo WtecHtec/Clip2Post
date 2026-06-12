@@ -79,6 +79,7 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
     const [speed, setSpeed] = useState(() => parseFloat(localStorage.getItem('dynamic-video-speed') || '1.0'));
     const [maxRetries, setMaxRetries] = useState(() => parseInt(localStorage.getItem('dynamic-video-maxRetries') || '1'));
     const [aspectRatio, setAspectRatio] = useState<'9:16' | '16:9'>(() => (localStorage.getItem('dynamic-video-aspectRatio') as '9:16' | '16:9') || '9:16');
+    const [alsoGenerateLandscape, setAlsoGenerateLandscape] = useState(() => localStorage.getItem('dynamic-video-alsoGenerateLandscape') === 'true');
     const [userAssets, setUserAssets] = useState<{ file: File; description: string; type: 'image' | 'video'; previewUrl: string }[]>([]);
     // OmniVoice: 'instruct' = style, 'clone' = voice cloning
     const [omnivoiceMode, setOmnivoiceMode] = useState<'instruct' | 'clone'>('instruct');
@@ -99,10 +100,11 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
         localStorage.setItem('dynamic-video-speed', speed.toString());
         localStorage.setItem('dynamic-video-maxRetries', maxRetries.toString());
         localStorage.setItem('dynamic-video-aspectRatio', aspectRatio);
+        localStorage.setItem('dynamic-video-alsoGenerateLandscape', alsoGenerateLandscape.toString());
         localStorage.setItem('dynamic-video-voiceoverTitle', voiceoverTitle);
         localStorage.setItem('dynamic-video-voiceoverText', voiceoverText);
         localStorage.setItem('dynamic-video-voiceoverTheme', voiceoverTheme);
-    }, [prompt, jsonPrompt, mode, ttsEngine, voice, preset, refineText, bgm, temperature, topP, topK, speed, maxRetries, aspectRatio, voiceoverTitle, voiceoverText, voiceoverTheme]);
+    }, [prompt, jsonPrompt, mode, ttsEngine, voice, preset, refineText, bgm, temperature, topP, topK, speed, maxRetries, aspectRatio, alsoGenerateLandscape, voiceoverTitle, voiceoverText, voiceoverTheme]);
 
     useEffect(() => {
         import('../api').then(mod => {
@@ -250,6 +252,7 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
             refine_text: refineText,
             bgm: bgm !== 'none' ? bgm : undefined,
             aspectRatio: mode === 'voiceover' ? '9:16' : aspectRatio,
+            alsoGenerateLandscape: mode === 'json' ? alsoGenerateLandscape : false,
             files: userAssets.map(asset => asset.file),
             imageDescriptions: JSON.stringify(userAssets.map(asset => asset.description || '')),
             maxRetries
@@ -428,7 +431,7 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
             {mode !== 'voiceover' && (
                 <div style={{ marginBottom: '1.5rem', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
                     <h4 className="section-title" style={{ marginBottom: '1rem', fontSize: '1rem' }}>📐 视频比例 (Aspect Ratio)</h4>
-                    <div style={{ display: 'flex', gap: '2rem' }}>
+                    <div style={{ display: 'flex', gap: '2rem', marginBottom: mode === 'json' && aspectRatio === '9:16' ? '1rem' : '0' }}>
                         <label className="radio-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
                             <input
                                 type="radio"
@@ -452,6 +455,29 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
                             <span>16:9 (横屏 / Landscape)</span>
                         </label>
                     </div>
+                    {mode === 'json' && aspectRatio === '9:16' && (
+                        <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '0.75rem', marginTop: '0.5rem' }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', userSelect: 'none' }}>
+                                <input
+                                    type="checkbox"
+                                    checked={alsoGenerateLandscape}
+                                    onChange={(e) => setAlsoGenerateLandscape(e.target.checked)}
+                                    style={{ 
+                                        width: '18px', 
+                                        height: '18px', 
+                                        accentColor: 'var(--accent-primary)',
+                                        cursor: 'pointer'
+                                    }}
+                                />
+                                <span style={{ fontSize: '0.95rem', fontWeight: 500, color: 'var(--text-primary)' }}>
+                                    同时生成 16:9 横屏视频 (Also generate 16:9 Landscape Video)
+                                </span>
+                            </label>
+                            <span style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.3rem', marginLeft: '1.85rem' }}>
+                                勾选后将同时导出两个视频：一个默认的 9:16 竖屏，以及一个 16:9 水平居中版。
+                            </span>
+                        </div>
+                    )}
                 </div>
             )}
 

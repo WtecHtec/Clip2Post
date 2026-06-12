@@ -6,6 +6,7 @@ import { MyScene, MySceneSchema } from './MyScene';
 import { ImageScene, ImageSceneSchema } from './ImageScene';
 import { NewsScene, NewsSceneSchema } from './NewsScene';
 import { AITemplate } from './demo/AITemplate';
+import { AITemplateLandscape } from './demo/AITemplateLandscape';
 import { VoiceoverScene, VoiceoverSceneSchema } from './VoiceoverScene';
 
 export const RemotionRoot = () => {
@@ -18,6 +19,23 @@ export const RemotionRoot = () => {
 				fps={30}
 				width={1080}
 				height={1920}
+				defaultProps={{
+					author: '@your_handle',
+					topic: 'AI工具速递',
+					title: '语音AI终于听懂你情绪了',
+					titleHighlight: '听懂',
+					bodyText: '副语言识别 · 百万人格组合 · 中英双语',
+					progressPercent: 45,
+					outroTagline: 'AI · 工具 · 变现',
+				}}
+			/>
+			<Composition
+				id="AITemplate16-9"
+				component={AITemplateLandscape}
+				durationInFrames={225}
+				fps={30}
+				width={1920}
+				height={1080}
 				defaultProps={{
 					author: '@your_handle',
 					topic: 'AI工具速递',

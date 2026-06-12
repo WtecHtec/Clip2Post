@@ -279,7 +279,8 @@ def process_dynamic_video_pipeline(
     bgm: str = "",
     aspect_ratio: str = "9:16",
     user_assets: List[Dict[str, Any]] = None,
-    max_retries: int = 1
+    max_retries: int = 1,
+    also_generate_landscape: bool = False
 ):
     """Background task for LLM Dynamic Template Video generation."""
     task_manager = TaskManager(task_id=task_id)
@@ -524,8 +525,13 @@ def process_dynamic_video_pipeline(
             # Add extra buffer of 60 frames for the outro scene + title duration
             duration_frames = int((total_duration_ms / 1000) * 30) + 60
             
+            comp_id = "AITemplate16-9" if aspect_ratio == "16:9" else "AITemplate"
             from video.remotion_renderer import run_remotion_render
-            run_remotion_render(shuo_json_path, video_output, duration_frames=duration_frames, composition_id="AITemplate")
+            run_remotion_render(shuo_json_path, video_output, duration_frames=duration_frames, composition_id=comp_id)
+            
+            if aspect_ratio == "9:16" and also_generate_landscape:
+                video_output_landscape = task_manager.get_dir("videos") / "remotion_video_16_9.mp4"
+                run_remotion_render(shuo_json_path, video_output_landscape, duration_frames=duration_frames, composition_id="AITemplate16-9")
             
             task_manager.update_status(1.0, "合成成功！", "completed")
             return
@@ -1577,6 +1583,7 @@ async def generate_dynamic_video(
     refine_text: bool = Form(True),
     bgm: str = Form(""),
     aspect_ratio: str = Form("9:16"),
+    also_generate_landscape: bool = Form(False),
     files: List[UploadFile] = File(None),
     image_descriptions: str = Form("[]"),  # JSON string: ["desc1", "desc2"]
     max_retries: int = Form(1)
@@ -1658,7 +1665,8 @@ async def generate_dynamic_video(
         bgm=bgm,
         aspect_ratio=aspect_ratio,
         user_assets=user_assets, # Updated from user_images
-        max_retries=max_retries
+        max_retries=max_retries,
+        also_generate_landscape=also_generate_landscape
     )
     
     return {"task_id": task_id, "message": "Dynamic Video Task started."}
