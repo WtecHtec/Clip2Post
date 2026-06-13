@@ -1,0 +1,19 @@
+[
+    {
+        "platform": "小红书",
+        "userDataDir": "",
+        "json": "./datas/xiaohong.json",
+        "params": [
+            {
+                "key": "title",
+                "desc": "标题",
+                "value": ""
+            },
+            {
+                "key": "filePath",
+                "desc": "文件本地路径",
+                "value": ""
+            }
+        ]
+    }
+]

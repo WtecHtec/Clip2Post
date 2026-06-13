@@ -37,3 +37,4 @@ tasks/*
 *.mp4
 *.wav
 test*
+flowauto/conofig.json

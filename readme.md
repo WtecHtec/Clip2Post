@@ -110,3 +110,12 @@ Made with ❤️ by WtecHtec.
 # 其他
 
 部分资源：相对路径软链接
+
+# flowauto
+
+一键分发多个平台 cli
+
+可以自己制作自己的工作流发布到其他平台。
+
+
+[flowauto](https://github.com/WtecHtec/electron-jest/tree/main)

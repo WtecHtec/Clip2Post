@@ -991,7 +991,8 @@ async def get_results(task_id: str):
                 "url": f"/tasks/{task_id}/videos/{vid.name}",
                 "title": f"Clip {i+1}",
                 "summary": "",
-                "content": ""
+                "content": "",
+                "local_path": str(vid.resolve())
             }
             # Try to match with metadata from clips.json if available
             if i < len(clips_metadata):
@@ -1024,6 +1025,46 @@ async def get_results(task_id: str):
     # Get Task Type
     task_type = status.get("task_type", "standard")
 
+    # Get snsTitle from remotion_props.json or fallback files
+    sns_title = None
+    
+    # 1. Try remotion_props.json
+    props_path = task_manager.task_dir / "remotion_props.json"
+    if props_path.exists():
+        try:
+            with open(props_path, 'r', encoding='utf-8') as f:
+                props_data = json.load(f)
+                sns_title = props_data.get("snsTitle") or props_data.get("sns_title")
+        except:
+            pass
+            
+    # 2. Try shuo.json (under audio dir)
+    if not sns_title:
+        shuo_path = task_manager.get_dir("audio") / "shuo.json"
+        if shuo_path.exists():
+            try:
+                with open(shuo_path, 'r', encoding='utf-8') as f:
+                    props_data = json.load(f)
+                    sns_title = props_data.get("snsTitle") or props_data.get("sns_title")
+            except:
+                pass
+                
+    # 3. Try parsing from user prompt in meta.json (especially useful for JSON mode)
+    if not sns_title:
+        meta_path = task_manager.get_dir("user_prompt") / "meta.json"
+        if meta_path.exists():
+            try:
+                with open(meta_path, 'r', encoding='utf-8') as f:
+                    meta_data = json.load(f)
+                    prompt_str = meta_data.get("prompt", "")
+                    try:
+                        prompt_json = json.loads(prompt_str)
+                        sns_title = prompt_json.get("snsTitle") or prompt_json.get("sns_title")
+                    except:
+                        sns_title = meta_data.get("snsTitle") or meta_data.get("sns_title")
+            except:
+                pass
+
     return {
         "subtitles": subtitle_content,
         "markdown": article_content,
@@ -1033,8 +1074,239 @@ async def get_results(task_id: str):
         "audio_url": audio_url,
         "source_video": source_video_url,
         "tts_config": tts_config,
-        "task_type": task_type
+        "task_type": task_type,
+        "sns_title": sns_title
     }
+
+
+# ----------------------------------------------------
+# Distribution API and State
+# ----------------------------------------------------
+from pydantic import BaseModel
+import datetime
+import subprocess
+
+distribute_statuses = {}  # task_id -> { platform_name: { "state": "running"|"completed"|"error", "error": str, "updated_at": str } }
+
+@app.get("/api/distribute/config")
+async def get_distribute_config():
+    """Get the distribution platforms config from flowauto/conofig.json."""
+    flowauto_dir = Path(__file__).parent / "flowauto"
+    config_path = flowauto_dir / "conofig.json"
+    if not config_path.exists():
+        dev_config = flowauto_dir / "conofig.dev.json"
+        if dev_config.exists():
+            config_path = dev_config
+        else:
+            return {"platforms": []}
+            
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            platforms = json.load(f)
+            return {"platforms": platforms}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": f"读取分发配置失败: {str(e)}"})
+
+
+class PublishRequest(BaseModel):
+    task_id: str
+    platforms: List[str]
+    shared_text: str
+    video_name: Optional[str] = None
+
+
+def escape_for_double_quotes(val: str) -> str:
+    """Escape special shell characters for safe usage inside double quotes in a shell command."""
+    val = val.replace("\\", "\\\\")  # Escape backslashes first
+    val = val.replace('"', '\\"')    # Escape double quotes
+    val = val.replace('$', '\\$')    # Escape dollar signs
+    val = val.replace('`', '\\`')    # Escape backticks
+    return val
+
+
+def run_distribution_task(task_id: str, platform_name: str, cmd: str, log_file_path: Path):
+    if task_id not in distribute_statuses:
+        distribute_statuses[task_id] = {}
+        
+    distribute_statuses[task_id][platform_name] = {
+        "state": "running",
+        "error": None,
+        "updated_at": datetime.datetime.now().isoformat()
+    }
+    
+    try:
+        log_file_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(log_file_path, "w", encoding="utf-8") as log_f:
+            log_f.write(f"Executing: {cmd}\n\n")
+            log_f.flush()
+            
+            result = subprocess.run(
+                cmd,
+                shell=True,
+                stdout=log_f,
+                stderr=subprocess.STDOUT,
+                text=True,
+                check=False
+            )
+            
+        # Check log file for internal errors printed by flowauto (which might exit with code 0)
+        has_error = False
+        error_line = ""
+        try:
+            if log_file_path.exists():
+                with open(log_file_path, "r", encoding="utf-8") as lf:
+                    for line in lf:
+                        if "ERROR:" in line or "执行错误:" in line or "任务执行失败:" in line:
+                            has_error = True
+                            error_line = line.strip()
+                            break
+        except Exception as log_err:
+            print(f"Error reading log file: {log_err}")
+
+        if result.returncode == 0 and not has_error:
+            distribute_statuses[task_id][platform_name] = {
+                "state": "completed",
+                "error": None,
+                "updated_at": datetime.datetime.now().isoformat()
+            }
+        else:
+            err_msg = error_line if has_error else f"Command exited with code {result.returncode}."
+            distribute_statuses[task_id][platform_name] = {
+                "state": "error",
+                "error": err_msg,
+                "updated_at": datetime.datetime.now().isoformat()
+            }
+    except Exception as e:
+        distribute_statuses[task_id][platform_name] = {
+            "state": "error",
+            "error": str(e),
+            "updated_at": datetime.datetime.now().isoformat()
+        }
+        try:
+            with open(log_file_path, "a", encoding="utf-8") as log_f:
+                log_f.write(f"\nException: {str(e)}\n")
+        except:
+            pass
+
+
+@app.post("/api/distribute/publish")
+async def publish_video(req: PublishRequest, background_tasks: BackgroundTasks):
+    """Publish generated video to selected platforms using flowauto CLI."""
+    task_manager = TaskManager(task_id=req.task_id)
+    
+    # 1. Resolve video path
+    videos_dir = task_manager.get_dir("videos")
+    video_path = None
+    if req.video_name:
+        test_path = videos_dir / req.video_name
+        if test_path.exists():
+            video_path = test_path
+            
+    if not video_path:
+        # Fallback to search all mp4 files
+        video_files = list(videos_dir.glob("*.mp4"))
+        if video_files:
+            video_path = video_files[0]
+            
+    if not video_path:
+        return JSONResponse(status_code=400, content={"error": "未找到生成的视频文件。"})
+        
+    # 2. Read platforms config
+    flowauto_dir = Path(__file__).parent / "flowauto"
+    config_path = flowauto_dir / "conofig.json"
+    if not config_path.exists():
+        dev_config = flowauto_dir / "conofig.dev.json"
+        if dev_config.exists():
+            config_path = dev_config
+        else:
+            return JSONResponse(status_code=400, content={"error": "分发配置文件不存在"})
+            
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            platforms_config = json.load(f)
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": f"读取分发配置失败: {str(e)}"})
+        
+    # Map from platform name to config
+    platform_map = {p["platform"]: p for p in platforms_config}
+    
+    triggered = []
+    for platform_name in req.platforms:
+        if platform_name not in platform_map:
+            continue
+            
+        p_cfg = platform_map[platform_name]
+        
+        # Build command dynamically
+        cmd_parts = ["flowauto"]
+        
+        user_data_dir = p_cfg.get("userDataDir", "")
+        if user_data_dir:
+            user_data_dir_clean = user_data_dir.replace("\\ ", " ")
+            if not os.path.isabs(user_data_dir_clean):
+                user_data_dir_clean = os.path.abspath(flowauto_dir / user_data_dir_clean)
+            user_data_dir_escaped = user_data_dir_clean.replace(" ", "\\ ")
+            user_data_dir_val = escape_for_double_quotes(user_data_dir_escaped)
+            cmd_parts.append(f'--userDataDir "{user_data_dir_val}"')
+            
+        json_file = p_cfg.get("json", "")
+        if json_file:
+            json_file_clean = json_file.replace("\\ ", " ")
+            if not os.path.isabs(json_file_clean):
+                json_file_clean = os.path.abspath(flowauto_dir / json_file_clean)
+            json_file_val = escape_for_double_quotes(json_file_clean)
+            cmd_parts.append(f'--filepath "{json_file_val}"')
+            
+        # Add params
+        for param in p_cfg.get("params", []):
+            key = param.get("key", "")
+            val = param.get("value", "")
+            
+            if key.lower() in ("filepath", "file_path", "video"):
+                val = str(video_path.resolve())
+            elif key.lower() in ("title", "desc", "description", "text", "content"):
+                val = req.shared_text
+                
+            val_escaped = escape_for_double_quotes(val)
+            cmd_parts.append(f'--{key} "{val_escaped}"')
+            
+        cmd_str = " ".join(cmd_parts)
+        log_file_path = task_manager.get_dir("llm_logs") / f"distribute_{platform_name}.log"
+        
+        background_tasks.add_task(
+            run_distribution_task,
+            req.task_id,
+            platform_name,
+            cmd_str,
+            log_file_path
+        )
+        triggered.append(platform_name)
+        
+    return {"success": True, "triggered_platforms": triggered}
+
+
+@app.get("/api/distribute/status/{task_id}")
+async def get_distribution_status(task_id: str):
+    """Get status of distribution tasks for a given task_id."""
+    status = distribute_statuses.get(task_id, {})
+    return {"status": status}
+
+
+@app.get("/api/distribute/log/{task_id}/{platform}")
+async def get_distribution_log(task_id: str, platform: str):
+    """Retrieve log for a specific platform distribution task."""
+    task_manager = TaskManager(task_id=task_id)
+    log_file_path = task_manager.get_dir("llm_logs") / f"distribute_{platform}.log"
+    if not log_file_path.exists():
+        return {"log": "No log found for this platform distribution."}
+        
+    try:
+        with open(log_file_path, "r", encoding="utf-8") as f:
+            log_content = f.read()
+        return {"log": log_content}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": f"读取日志失败: {str(e)}"})
+
 
 def process_agent_video_pipeline(
     task_id: str,

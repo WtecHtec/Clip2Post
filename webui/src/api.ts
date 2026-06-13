@@ -15,6 +15,7 @@ export interface ClipMetadata {
   title: string;
   summary: string;
   content: string;
+  local_path?: string;
 }
 
 export interface TaskResults {
@@ -27,6 +28,7 @@ export interface TaskResults {
   source_video?: string;
   tts_config?: TTSOptions;
   task_type?: 'standard' | 'agent';
+  sns_title?: string;
 }
 
 export interface TaskOverview extends TaskStatus {
@@ -446,3 +448,71 @@ export const regenerateDynamicVideo = async (taskId: string): Promise<string> =>
   const data = await response.json();
   return data.task_id;
 };
+
+export interface PlatformParam {
+  key: string;
+  desc: string;
+  value: string;
+}
+
+export interface PlatformConfig {
+  platform: string;
+  userDataDir: string;
+  json: string;
+  params: PlatformParam[];
+}
+
+export interface DistributeStatus {
+  state: 'idle' | 'running' | 'completed' | 'error';
+  error?: string | null;
+  updated_at?: string;
+}
+
+export interface DistributeStatusResponse {
+  status: Record<string, DistributeStatus>;
+}
+
+export const fetchDistributeConfig = async (): Promise<{ platforms: PlatformConfig[] }> => {
+  const response = await fetch(`${API_BASE_URL}/distribute/config`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch distribution config: ${response.statusText}`);
+  }
+  return await response.json();
+};
+
+export const publishToPlatforms = async (req: {
+  task_id: string;
+  platforms: string[];
+  shared_text: string;
+  video_name?: string;
+}): Promise<{ success: boolean; triggered_platforms: string[] }> => {
+  const response = await fetch(`${API_BASE_URL}/distribute/publish`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(req),
+  });
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || `Publishing failed: ${response.statusText}`);
+  }
+  return await response.json();
+};
+
+export const fetchDistributeStatus = async (taskId: string): Promise<DistributeStatusResponse> => {
+  const response = await fetch(`${API_BASE_URL}/distribute/status/${taskId}`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch distribution status: ${response.statusText}`);
+  }
+  return await response.json();
+};
+
+export const fetchDistributeLog = async (taskId: string, platform: string): Promise<{ log: string }> => {
+  const response = await fetch(`${API_BASE_URL}/distribute/log/${taskId}/${platform}`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch distribution log: ${response.statusText}`);
+  }
+  return await response.json();
+};
+
