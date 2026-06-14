@@ -1124,6 +1124,11 @@ def escape_for_double_quotes(val: str) -> str:
     return val
 
 
+import threading
+
+distribute_lock = threading.Lock()
+
+
 def run_distribution_task(task_id: str, platform_name: str, cmd: str, log_file_path: Path):
     if task_id not in distribute_statuses:
         distribute_statuses[task_id] = {}
@@ -1136,41 +1141,61 @@ def run_distribution_task(task_id: str, platform_name: str, cmd: str, log_file_p
     
     try:
         log_file_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(log_file_path, "w", encoding="utf-8") as log_f:
-            log_f.write(f"Executing: {cmd}\n\n")
-            log_f.flush()
+        
+        # If lock is currently locked, write a log message to inform the user
+        if distribute_lock.locked():
+            try:
+                with open(log_file_path, "w", encoding="utf-8") as log_f:
+                    log_f.write("当前有其他分发任务正在运行，等待中...\n")
+                    log_f.flush()
+            except Exception as e:
+                print(f"Error writing queue status log: {e}")
+                
+        with distribute_lock:
+            with open(log_file_path, "w", encoding="utf-8") as log_f:
+                log_f.write(f"Executing: {cmd}\n\n")
+                log_f.flush()
+                
+                result = subprocess.run(
+                    cmd,
+                    shell=True,
+                    stdout=log_f,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    check=False
+                )
             
-            result = subprocess.run(
-                cmd,
-                shell=True,
-                stdout=log_f,
-                stderr=subprocess.STDOUT,
-                text=True,
-                check=False
-            )
-            
-        # Check log file for internal errors printed by flowauto (which might exit with code 0)
+        # Check log file for internal errors and success indicators printed by flowauto
+        has_success = False
         has_error = False
         error_line = ""
         try:
             if log_file_path.exists():
                 with open(log_file_path, "r", encoding="utf-8") as lf:
                     for line in lf:
+                        if "分发任务完成" in line:
+                            has_success = True
                         if "ERROR:" in line or "执行错误:" in line or "任务执行失败:" in line:
                             has_error = True
-                            error_line = line.strip()
-                            break
+                            if not error_line:
+                                error_line = line.strip()
         except Exception as log_err:
             print(f"Error reading log file: {log_err}")
 
-        if result.returncode == 0 and not has_error:
+        if has_success:
             distribute_statuses[task_id][platform_name] = {
                 "state": "completed",
                 "error": None,
                 "updated_at": datetime.datetime.now().isoformat()
             }
         else:
-            err_msg = error_line if has_error else f"Command exited with code {result.returncode}."
+            if has_error:
+                err_msg = error_line
+            elif result.returncode != 0:
+                err_msg = f"Command exited with code {result.returncode}."
+            else:
+                err_msg = "分发任务未完成（日志中未找到'分发任务完成'标志）。"
+                
             distribute_statuses[task_id][platform_name] = {
                 "state": "error",
                 "error": err_msg,
