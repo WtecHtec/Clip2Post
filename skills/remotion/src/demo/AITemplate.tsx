@@ -16,7 +16,13 @@ export const AITemplate: React.FC<TemplateProps> = (props) => {
   const bgmUrl = props.bgmPath || props.bgm;
 
   const bgImage = props.bgImage;
-  const bgImageUrl = bgImage ? (bgImage.startsWith('http') || bgImage.startsWith('/') ? bgImage : staticFile(`bgImages/${bgImage}`)) : null;
+  const bgImageUrl = bgImage ? (
+    bgImage.startsWith('http') ? bgImage :
+    bgImage.startsWith('/') ? bgImage :
+    bgImage.startsWith('tasks/') ? staticFile(bgImage) :
+    bgImage.startsWith('bgImages/') ? staticFile(bgImage) :
+    staticFile(`bgImages/${bgImage}`)
+  ) : null;
   const bgOpacity = props.bgImageOpacity !== undefined ? props.bgImageOpacity : 0.15;
   const isVideoBg = bgImage && (
     bgImage.endsWith('.mp4') || 

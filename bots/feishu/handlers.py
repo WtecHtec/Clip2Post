@@ -1,3 +1,4 @@
+import os
 import re
 import json
 import threading
@@ -107,18 +108,23 @@ def do_p2_im_message_receive_v1(data: P2ImMessageReceiveV1) -> None:
                     json.dump(script_data, sf, ensure_ascii=False, indent=2)
                 
                 # Cache session state
+                existing_session = get_session(open_id)
+                latest_media_path = existing_session.get("latest_media_path", "") if existing_session else ""
+                latest_media_name = existing_session.get("latest_media_name", "") if existing_session else ""
+                
                 session_data = {
                     "task_id": task_id,
                     "json_data": script_data,
-                    "latest_media_path": "",
-                    "latest_media_name": "",
+                    "latest_media_path": latest_media_path,
+                    "latest_media_name": latest_media_name,
                     "card_message_id": "",
                     "created_at": datetime.now()
                 }
                 set_session(open_id, session_data)
                 
                 # Push Confirmation Card A
-                response = send_topic_confirm_card(open_id, script_data)
+                media_status = f"已绑定最新媒体: {latest_media_name}" if latest_media_name else "暂无绑定媒体"
+                response = send_topic_confirm_card(open_id, script_data, media_status)
                 resp_json = json.loads(response.raw.content)
                 message_id = resp_json.get("data", {}).get("message_id")
                 if message_id:
@@ -142,17 +148,22 @@ def do_p2_im_message_receive_v1(data: P2ImMessageReceiveV1) -> None:
                     with open(script_file_path, "w", encoding="utf-8") as sf:
                         json.dump(script_data, sf, ensure_ascii=False, indent=2)
                         
+                    existing_session = get_session(open_id)
+                    latest_media_path = existing_session.get("latest_media_path", "") if existing_session else ""
+                    latest_media_name = existing_session.get("latest_media_name", "") if existing_session else ""
+                    
                     session_data = {
                         "task_id": task_id,
                         "json_data": script_data,
-                        "latest_media_path": "",
-                        "latest_media_name": "",
+                        "latest_media_path": latest_media_path,
+                        "latest_media_name": latest_media_name,
                         "card_message_id": "",
                         "created_at": datetime.now()
                     }
                     set_session(open_id, session_data)
                     
-                    response = send_topic_confirm_card(open_id, script_data)
+                    media_status = f"已绑定最新媒体: {latest_media_name}" if latest_media_name else "暂无绑定媒体"
+                    response = send_topic_confirm_card(open_id, script_data, media_status)
                     resp_json = json.loads(response.raw.content)
                     message_id = resp_json.get("data", {}).get("message_id")
                     if message_id:
@@ -163,20 +174,20 @@ def do_p2_im_message_receive_v1(data: P2ImMessageReceiveV1) -> None:
             except json.JSONDecodeError:
                 send_message("open_id", open_id, "text", json.dumps({"text": "💡 请发送 `话题: xxx` 来生成文案，或者发送标准 JSON 剧本文本。"}))
 
-    elif msg_type in ("image", "file"):
+    elif msg_type in ("image", "file", "media"):
         session = get_session(open_id)
-        if not session:
-            send_message("open_id", open_id, "text", json.dumps({"text": "⚠️ 请先发送话题或 JSON 剧本创建任务，再发送媒体文件绑定背景素材哦。"}))
-            return
+        
+        # Resolve target assets directory
+        if not session or not session.get("task_id"):
+            from config.settings import TASKS_DIR
+            temp_dir = Path(TASKS_DIR) / "temp_feishu_uploads" / open_id
+            temp_dir.mkdir(parents=True, exist_ok=True)
+            assets_dir = temp_dir
+        else:
+            task_manager = TaskManager(task_id=session["task_id"])
+            assets_dir = task_manager.task_dir / "assets"
+            assets_dir.mkdir(parents=True, exist_ok=True)
             
-        task_id = session["task_id"]
-        card_message_id = session["card_message_id"]
-        script_data = session["json_data"]
-        
-        task_manager = TaskManager(task_id=task_id)
-        assets_dir = task_manager.task_dir / "assets"
-        assets_dir.mkdir(parents=True, exist_ok=True)
-        
         content_data = json.loads(data.event.message.content)
         
         try:
@@ -196,20 +207,34 @@ def do_p2_im_message_receive_v1(data: P2ImMessageReceiveV1) -> None:
                 send_message("open_id", open_id, "text", json.dumps({"text": f"⏳ 正在下载媒体文件「{filename}」..."}))
                 download_file_from_lark(data.event.message.message_id, file_key, str(save_path))
                 
-            # Update session media
-            session["latest_media_path"] = str(save_path)
-            session["latest_media_name"] = filename
+            # Update or create session
+            if not session:
+                session = {
+                    "task_id": "",
+                    "json_data": {},
+                    "latest_media_path": str(save_path),
+                    "latest_media_name": filename,
+                    "card_message_id": "",
+                    "created_at": datetime.now()
+                }
+            else:
+                session["latest_media_path"] = str(save_path)
+                session["latest_media_name"] = filename
             set_session(open_id, session)
             
-            send_message("open_id", open_id, "text", json.dumps({"text": f"✅ 素材已绑定成功: {filename}"}))
-            
-            # Patch Card A
-            if card_message_id:
-                update_message_card(card_message_id, script_data, f"已绑定最新媒体: {filename}")
+            # Send status update
+            if session.get("task_id"):
+                send_message("open_id", open_id, "text", json.dumps({"text": f"✅ 素材已绑定成功: {filename}"}))
+                # Patch Card A
+                if session.get("card_message_id"):
+                    update_message_card(session["card_message_id"], session["json_data"], f"已绑定最新媒体: {filename}")
+            else:
+                send_message("open_id", open_id, "text", json.dumps({"text": f"✅ 素材已保存！\n💡 请发送「话题: xxx」或剧本 JSON 来创建视频生成任务。"}))
+                
         except Exception as e:
             import traceback
             traceback.print_exc()
-            send_message("open_id", open_id, "text", json.dumps({"text": f"❌ 素材绑定失败:\n{str(e)}"}))
+            send_message("open_id", open_id, "text", json.dumps({"text": f"❌ 素材保存/绑定失败:\n{str(e)}"}))
 
 # Handle card interactive action triggers
 def do_p2_card_action_trigger(data: P2CardActionTrigger) -> P2CardActionTriggerResponse:

@@ -116,12 +116,8 @@ def run_video_pipeline_async(open_id: str, task_id: str, script_data: dict, sess
                 "description": "Feishu upload background"
             }]
             
-            # Set background property in script json as relative URL
-            script_data["bgImage"] = f"/tasks/{task_id}/assets/{latest_media_name}"
-        else:
-            # Fallback to configured DEFAULT_BG
-            if "bgImage" not in script_data or not script_data["bgImage"]:
-                script_data["bgImage"] = DEFAULT_BG
+        # Directly use DEFAULT_BG for bgImage
+        script_data["bgImage"] = DEFAULT_BG
             
         prompt_json_str = json.dumps(script_data, ensure_ascii=False)
         
@@ -156,18 +152,31 @@ def run_video_pipeline_async(open_id: str, task_id: str, script_data: dict, sess
         send_file_message("open_id", open_id, file_key)
         
         # Push Card B (Distribute card)
-        send_distribute_card(open_id, str(video_output_path), script_data.get("title", "生成的视频"))
-        
+        send_distribute_card(open_id, str(video_output_path), script_data.get("snsTitle") or script_data.get("sns_title") or script_data.get("title", "生成的视频"))
     except Exception as e:
         import traceback
         traceback.print_exc()
         error_msg = f"❌ 渲染生成视频失败:\n{str(e)}"
         send_message("open_id", open_id, "text", json.dumps({"text": error_msg}))
 
+def escape_for_double_quotes(val: str) -> str:
+    """Escape special shell characters for safe usage inside double quotes in a shell command."""
+    val = val.replace("\\", "\\\\")  # Escape backslashes first
+    val = val.replace('"', '\\"')    # Escape double quotes
+    val = val.replace('$', '\\$')    # Escape dollar signs
+    val = val.replace('`', '\\`')    # Escape backticks
+    return val
+
+
+import threading
+
+distribute_lock = threading.Lock()
+
+
 # Distribute async thread helper
 def distribute_video_async(open_id: str, task_id: str, platform: str, video_path: str, title: str):
     try:
-        flowauto_dir = Path(__file__).resolve().parent.parent / "flowauto"
+        flowauto_dir = Path(__file__).resolve().parent.parent.parent / "flowauto"
         config_path = flowauto_dir / "conofig.json"
         if not config_path.exists():
             config_path = flowauto_dir / "conofig.dev.json"
@@ -178,11 +187,23 @@ def distribute_video_async(open_id: str, task_id: str, platform: str, video_path
         with open(config_path, "r", encoding="utf-8") as f:
             platforms_config = json.load(f)
             
-        platform_map = {p["platform"]: p for p in platforms_config}
-        if platform not in platform_map:
-            raise Exception(f"分发配置中未找到平台: {platform}")
+        # Map incoming English/custom platform names to Chinese platform names in conofig.json
+        platform_mapping = {
+            "xiaohongshu": "小红书",
+            "xhs": "小红书",
+            "douyin": "抖音",
+            "dy": "抖音",
+            "shipinhao": "视频号",
+            "sph": "视频号",
+            "wechat": "视频号"
+        }
+        mapped_platform = platform_mapping.get(platform.lower(), platform)
             
-        p_cfg = platform_map[platform]
+        platform_map = {p["platform"]: p for p in platforms_config}
+        if mapped_platform not in platform_map:
+            raise Exception(f"分发配置中未找到平台: {mapped_platform}")
+            
+        p_cfg = platform_map[mapped_platform]
         cmd_parts = ["flowauto"]
         
         user_data_dir = p_cfg.get("userDataDir", "")
@@ -190,16 +211,17 @@ def distribute_video_async(open_id: str, task_id: str, platform: str, video_path
             user_data_dir_clean = user_data_dir.replace("\\ ", " ")
             if not os.path.isabs(user_data_dir_clean):
                 user_data_dir_clean = os.path.abspath(flowauto_dir / user_data_dir_clean)
-            user_data_dir_escaped = user_data_dir_clean.replace("\"", "\\\"")
-            cmd_parts.append(f'--userDataDir "{user_data_dir_escaped}"')
+            user_data_dir_escaped = user_data_dir_clean.replace(" ", "\\ ")
+            user_data_dir_val = escape_for_double_quotes(user_data_dir_escaped)
+            cmd_parts.append(f'--userDataDir "{user_data_dir_val}"')
             
         json_file = p_cfg.get("json", "")
         if json_file:
             json_file_clean = json_file.replace("\\ ", " ")
             if not os.path.isabs(json_file_clean):
                 json_file_clean = os.path.abspath(flowauto_dir / json_file_clean)
-            json_file_escaped = json_file_clean.replace("\"", "\\\"")
-            cmd_parts.append(f'--filepath "{json_file_escaped}"')
+            json_file_val = escape_for_double_quotes(json_file_clean)
+            cmd_parts.append(f'--filepath "{json_file_val}"')
             
         # Add params
         for param in p_cfg.get("params", []):
@@ -211,7 +233,7 @@ def distribute_video_async(open_id: str, task_id: str, platform: str, video_path
             elif key.lower() in ("title", "desc", "description", "text", "content"):
                 val = title
                 
-            val_escaped = val.replace("\\", "\\\\").replace('"', '\\"').replace('$', '\\$').replace('`', '\\`')
+            val_escaped = escape_for_double_quotes(val)
             cmd_parts.append(f'--{key} "{val_escaped}"')
             
         cmd_str = " ".join(cmd_parts)
@@ -219,20 +241,24 @@ def distribute_video_async(open_id: str, task_id: str, platform: str, video_path
         
         # Log path
         task_manager = TaskManager(task_id=task_id)
-        log_file_path = task_manager.get_dir("llm_logs") / f"distribute_{platform}.log"
+        log_file_path = task_manager.get_dir("llm_logs") / f"distribute_{mapped_platform}.log"
         log_file_path.parent.mkdir(parents=True, exist_ok=True)
         
-        with open(log_file_path, "w", encoding="utf-8") as log_f:
-            log_f.write(f"Executing: {cmd_str}\n\n")
-            log_f.flush()
-            result = subprocess.run(
-                cmd_str,
-                shell=True,
-                stdout=log_f,
-                stderr=subprocess.STDOUT,
-                text=True,
-                check=False
-            )
+        if distribute_lock.locked():
+            send_message("open_id", open_id, "text", json.dumps({"text": f"⏳ 当前有其他平台分发任务正在运行，已将分发至 [{mapped_platform}] 的任务加入队列，请稍候..."}))
+            
+        with distribute_lock:
+            with open(log_file_path, "w", encoding="utf-8") as log_f:
+                log_f.write(f"Executing: {cmd_str}\n\n")
+                log_f.flush()
+                result = subprocess.run(
+                    cmd_str,
+                    shell=True,
+                    stdout=log_f,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    check=False
+                )
             
         # Check logs for success
         has_success = False
@@ -244,11 +270,11 @@ def distribute_video_async(open_id: str, task_id: str, platform: str, video_path
                         break
                         
         if has_success or result.returncode == 0:
-            msg = f"🎉 成功分发视频至 [{platform.upper()}]！"
+            msg = f"🎉 成功分发视频至 [{mapped_platform}]！"
         else:
-            msg = f"❌ 分发至 [{platform.upper()}] 失败，请检查配置或日志。"
+            msg = f"❌ 分发至 [{mapped_platform}] 失败，请检查配置或日志。"
             
         send_message("open_id", open_id, "text", json.dumps({"text": msg}))
     except Exception as e:
-        msg = f"❌ 分发至 [{platform.upper()}] 时发生错误:\n{str(e)}"
+        msg = f"❌ 分发至 [{mapped_platform}] 时发生错误:\n{str(e)}"
         send_message("open_id", open_id, "text", json.dumps({"text": msg}))
