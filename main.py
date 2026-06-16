@@ -29,6 +29,8 @@ screenshot_tool = ScreenshotExtractor()
 
 app = FastAPI(title="Clip2Post V2 API")
 
+
+
 # Allow CORS for React dev server
 app.add_middleware(
     CORSMiddleware,
@@ -367,7 +369,12 @@ def process_dynamic_video_pipeline(
                 "assets": assets_list,
             }
             if bgm:
-                props["bgmPath"] = bgm
+                import re
+                clean_bgm = re.sub(r'^bgm[/\\]+', '', bgm)
+                if bgm.startswith("http"):
+                    props["bgmPath"] = bgm
+                else:
+                    props["bgmPath"] = f"http://127.0.0.1:8000/bgm/{clean_bgm}"
             
             # Save props to shuo.json (under task audio folder)
             audio_dir = task_manager.get_dir("audio")
@@ -503,7 +510,12 @@ def process_dynamic_video_pipeline(
             if bg_image:
                 props["bgImage"] = props.get("bgImage") or bg_image
             if bgm:
-                props["bgmPath"] = bgm
+                import re
+                clean_bgm = re.sub(r'^bgm[/\\]+', '', bgm)
+                if bgm.startswith("http"):
+                    props["bgmPath"] = bgm
+                else:
+                    props["bgmPath"] = f"http://127.0.0.1:8000/bgm/{clean_bgm}"
             
             # Save props to shuo.json (under task audio folder)
             audio_dir = task_manager.get_dir("audio")
@@ -686,11 +698,13 @@ def process_dynamic_video_pipeline(
             "aspect_ratio": aspect_ratio
         }
         if bgm:
+            import re
+            clean_bgm = re.sub(r'^bgm[/\\]+', '', bgm)
             # Also ensure BGM is absolute
             if bgm.startswith("http"):
                 props["bgm"] = bgm
             else:
-                props["bgm"] = f"http://127.0.0.1:8000/bgm/{bgm}"
+                props["bgm"] = f"http://127.0.0.1:8000/bgm/{clean_bgm}"
 
         # Combine user prompt, visual style and scene suggestions for the developer agent
         scene_guidelines = "\n".join([f"Scene {i+1}: {s.get('visual')}" for i, s in enumerate(scenes)])

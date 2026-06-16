@@ -19,6 +19,12 @@ MODELS_DIR.mkdir(parents=True, exist_ok=True)
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
 LLM_MODEL = os.getenv("LLM_MODEL", "gpt-4-turbo")
+
+# Bot Specific LLM Configuration (Topic Script Generation)
+BOT_OPENAI_API_KEY = os.getenv("BOT_OPENAI_API_KEY", OPENAI_API_KEY)
+BOT_OPENAI_BASE_URL = os.getenv("BOT_OPENAI_BASE_URL", OPENAI_BASE_URL)
+BOT_LLM_MODEL = os.getenv("BOT_LLM_MODEL", LLM_MODEL)
+
 HF_TOKEN = os.getenv("HF_TOKEN", "")
 HF_ENDPOINT = os.getenv("HF_ENDPOINT", "")
 
@@ -49,3 +55,11 @@ QWEN_FORCED_ALIGNER = os.getenv("QWEN_FORCED_ALIGNER", "Qwen/Qwen3-ForcedAligner
 # Video & Audio processing config
 DEFAULT_AUDIO_SAMPLE_RATE = 16000
 DEFAULT_AUDIO_CHANNELS = 1
+
+# TTS Defaults
+DEFAULT_TTS_ENGINE = os.getenv("DEFAULT_TTS_ENGINE", "omnivoice")
+DEFAULT_TTS_VOICE = os.getenv("DEFAULT_TTS_VOICE", "男，老年")
+
+# Media Defaults
+DEFAULT_BGM = os.getenv("DEFAULT_BGM", "bgm/default_jazz.mp3")
+DEFAULT_BG = os.getenv("DEFAULT_BG", "image.png")
