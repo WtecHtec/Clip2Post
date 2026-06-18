@@ -2077,6 +2077,7 @@ async def generate_tts_api(
         output_path.parent.mkdir(parents=True, exist_ok=True)
         
         output_base = str(output_path.with_suffix(''))
+        json_path = None
 
         # Generate TTS
         if tts_engine == "kokoro":
@@ -2111,7 +2112,22 @@ async def generate_tts_api(
             shutil.move(str(final_audio_path), str(output_path))
             audio_path_to_return = str(output_path)
 
-        return {"status": "success", "save_path": audio_path_to_return}
+        # Read the corresponding JSON file (captions/timestamps)
+        captions = []
+        if json_path:
+            json_file_path = Path(json_path)
+            if json_file_path.exists():
+                try:
+                    with open(json_file_path, "r", encoding="utf-8") as f:
+                        captions = json.load(f)
+                except Exception as e:
+                    print(f"Error reading TTS JSON file {json_file_path}: {e}")
+
+        return {
+            "status": "success",
+            "save_path": audio_path_to_return,
+            "captions": captions
+        }
 
     except Exception as e:
         import traceback
