@@ -38,3 +38,5 @@ tasks/*
 *.wav
 test*
 flowauto/conofig.json
+assets/*
+compositions/*

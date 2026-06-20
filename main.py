@@ -2059,7 +2059,7 @@ async def audio_render(
     return {"task_id": task_id, "message": "Render started."}
 
 @app.post("/api/tts")
-async def generate_tts_api(
+def generate_tts_api(
     text: str = Form(...),
     tts_engine: str = Form("edge"),
     voice: str = Form(""),
@@ -2079,29 +2079,34 @@ async def generate_tts_api(
         output_base = str(output_path.with_suffix(''))
         json_path = None
 
+        # Preprocess text to convert dot patterns to "点" for proper TTS reading:
+        # e.g., "1.2" -> "1点2", "a.b" -> "a点b"
+        import re
+        processed_text = re.sub(r'([a-zA-Z0-9])\.([a-zA-Z0-9])', r'\1点\2', text)
+
         # Generate TTS
         if tts_engine == "kokoro":
             voice = voice or "af_heart"
             from tts.kokoro_processor import run_kokoro_tts_sync
-            audio_path, json_path = run_kokoro_tts_sync(text, output_base, voice=voice)
+            audio_path, json_path = run_kokoro_tts_sync(processed_text, output_base, voice=voice)
         elif tts_engine == "chattts":
             from tts.chattts_processor import run_chattts_sync
             audio_path, json_path = run_chattts_sync(
-                text, output_base, voice=voice,
+                processed_text, output_base, voice=voice,
                 temperature=temperature, top_p=top_p, top_k=top_k, 
                 speed=speed, refine_text_flag=refine_text
             )
         elif tts_engine == "omnivoice":
             from tts.omnivoice_processor import run_omnivoice_tts_sync
-            audio_path, json_path = run_omnivoice_tts_sync(text, output_base, voice_instruct=voice)
+            audio_path, json_path = run_omnivoice_tts_sync(processed_text, output_base, voice_instruct=voice)
         elif tts_engine == "voxcpm":
-            audio_path, json_path = run_voxcpm_tts_sync(text, output_base, voice=voice)
+            audio_path, json_path = run_voxcpm_tts_sync(processed_text, output_base, voice=voice)
         elif tts_engine == "mlx":
-            audio_path, json_path = run_mlx_tts_sync(text, output_base, voice=voice, speed=speed)
+            audio_path, json_path = run_mlx_tts_sync(processed_text, output_base, voice=voice, speed=speed)
         else:
             voice = voice or "zh-CN-XiaoxiaoNeural"
             from tts.processor import run_tts_sync
-            audio_path, json_path = run_tts_sync(text, output_base, voice=voice)
+            audio_path, json_path = run_tts_sync(processed_text, output_base, voice=voice)
 
         final_audio_path = Path(audio_path)
         audio_path_to_return = str(final_audio_path)
@@ -2120,6 +2125,11 @@ async def generate_tts_api(
                 try:
                     with open(json_file_path, "r", encoding="utf-8") as f:
                         captions = json.load(f)
+                    
+                    # Restore "点" to "." for letters and digits combinations in captions
+                    for c in captions:
+                        if "text" in c and c["text"]:
+                            c["text"] = re.sub(r'([a-zA-Z0-9])点([a-zA-Z0-9])', r'\1.\2', c["text"])
                 except Exception as e:
                     print(f"Error reading TTS JSON file {json_file_path}: {e}")
 
