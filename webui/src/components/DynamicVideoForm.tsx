@@ -85,6 +85,11 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
     const [omnivoiceMode, setOmnivoiceMode] = useState<'instruct' | 'clone'>('instruct');
     const [omnivoiceCloneSource, setOmnivoiceCloneSource] = useState<'preset' | 'upload'>('preset');
 
+    const [videoDuration, setVideoDuration] = useState(() => parseFloat(localStorage.getItem('dynamic-video-videoDuration') || '10'));
+    const [ttsVolume, setTtsVolume] = useState(() => parseFloat(localStorage.getItem('dynamic-video-ttsVolume') || '1.0'));
+    const [mediaVolume, setMediaVolume] = useState(() => parseFloat(localStorage.getItem('dynamic-video-mediaVolume') || '1.0'));
+    const [bgmVolume, setBgmVolume] = useState(() => parseFloat(localStorage.getItem('dynamic-video-bgmVolume') || '0.15'));
+
     useEffect(() => {
         localStorage.setItem('dynamic-video-prompt', prompt);
         localStorage.setItem('dynamic-video-jsonPrompt', jsonPrompt);
@@ -104,7 +109,78 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
         localStorage.setItem('dynamic-video-voiceoverTitle', voiceoverTitle);
         localStorage.setItem('dynamic-video-voiceoverText', voiceoverText);
         localStorage.setItem('dynamic-video-voiceoverTheme', voiceoverTheme);
-    }, [prompt, jsonPrompt, mode, ttsEngine, voice, preset, refineText, bgm, temperature, topP, topK, speed, maxRetries, aspectRatio, alsoGenerateLandscape, voiceoverTitle, voiceoverText, voiceoverTheme]);
+        localStorage.setItem('dynamic-video-videoDuration', videoDuration.toString());
+        localStorage.setItem('dynamic-video-ttsVolume', ttsVolume.toString());
+        localStorage.setItem('dynamic-video-mediaVolume', mediaVolume.toString());
+        localStorage.setItem('dynamic-video-bgmVolume', bgmVolume.toString());
+    }, [prompt, jsonPrompt, mode, ttsEngine, voice, preset, refineText, bgm, temperature, topP, topK, speed, maxRetries, aspectRatio, alsoGenerateLandscape, voiceoverTitle, voiceoverText, voiceoverTheme, videoDuration, ttsVolume, mediaVolume, bgmVolume]);
+
+    useEffect(() => {
+        if (mode !== 'json') return;
+        try {
+            const parsed = JSON.parse(jsonPrompt);
+            if (parsed.videoDuration !== undefined && typeof parsed.videoDuration === 'number' && parsed.videoDuration !== videoDuration) {
+                setVideoDuration(parsed.videoDuration);
+            } else if (parsed.duration !== undefined && typeof parsed.duration === 'number' && parsed.duration !== videoDuration) {
+                setVideoDuration(parsed.duration);
+            }
+            if (parsed.ttsVolume !== undefined && typeof parsed.ttsVolume === 'number' && parsed.ttsVolume !== ttsVolume) {
+                setTtsVolume(parsed.ttsVolume);
+            }
+            if (parsed.mediaVolume !== undefined && typeof parsed.mediaVolume === 'number' && parsed.mediaVolume !== mediaVolume) {
+                setMediaVolume(parsed.mediaVolume);
+            }
+            if (parsed.bgmVolume !== undefined && typeof parsed.bgmVolume === 'number' && parsed.bgmVolume !== bgmVolume) {
+                setBgmVolume(parsed.bgmVolume);
+            }
+        } catch (e) {
+            // Ignore JSON parsing errors during typing
+        }
+    }, [jsonPrompt, mode]);
+
+    const handleVideoDurationChange = (val: number) => {
+        setVideoDuration(val);
+        if (mode === 'json') {
+            try {
+                const parsed = JSON.parse(jsonPrompt);
+                parsed.videoDuration = val;
+                setJsonPrompt(JSON.stringify(parsed, null, 2));
+            } catch (e) { }
+        }
+    };
+
+    const handleTtsVolumeChange = (val: number) => {
+        setTtsVolume(val);
+        if (mode === 'json') {
+            try {
+                const parsed = JSON.parse(jsonPrompt);
+                parsed.ttsVolume = val;
+                setJsonPrompt(JSON.stringify(parsed, null, 2));
+            } catch (e) { }
+        }
+    };
+
+    const handleMediaVolumeChange = (val: number) => {
+        setMediaVolume(val);
+        if (mode === 'json') {
+            try {
+                const parsed = JSON.parse(jsonPrompt);
+                parsed.mediaVolume = val;
+                setJsonPrompt(JSON.stringify(parsed, null, 2));
+            } catch (e) { }
+        }
+    };
+
+    const handleBgmVolumeChange = (val: number) => {
+        setBgmVolume(val);
+        if (mode === 'json') {
+            try {
+                const parsed = JSON.parse(jsonPrompt);
+                parsed.bgmVolume = val;
+                setJsonPrompt(JSON.stringify(parsed, null, 2));
+            } catch (e) { }
+        }
+    };
 
     useEffect(() => {
         import('../api').then(mod => {
@@ -255,7 +331,11 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
             alsoGenerateLandscape: mode === 'json' ? alsoGenerateLandscape : false,
             files: userAssets.map(asset => asset.file),
             imageDescriptions: JSON.stringify(userAssets.map(asset => asset.description || '')),
-            maxRetries
+            maxRetries,
+            ttsVolume,
+            mediaVolume,
+            bgmVolume,
+            videoDuration: mode === 'json' ? videoDuration : undefined
         });
     };
 
@@ -342,6 +422,46 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
                                 resize: 'vertical'
                             }}
                         />
+                        <div style={{ marginTop: '1.2rem', paddingTop: '1.2rem', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
+                                <span style={{ fontSize: '0.95rem', fontWeight: 500, color: 'var(--text-primary)' }}>⏱️ 视频时长 (Video Duration)</span>
+                                <span style={{ color: 'var(--accent-primary)', fontWeight: 'bold' }}>{videoDuration} 秒</span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                <input
+                                    type="range"
+                                    min="1"
+                                    max="120"
+                                    step="1"
+                                    value={videoDuration}
+                                    onChange={(e) => handleVideoDurationChange(parseFloat(e.target.value))}
+                                    style={{ flex: 1, accentColor: 'var(--accent-primary)', cursor: 'pointer' }}
+                                />
+                                <input
+                                    type="number"
+                                    min="1"
+                                    max="120"
+                                    step="1"
+                                    value={videoDuration}
+                                    onChange={(e) => {
+                                        const val = parseFloat(e.target.value);
+                                        if (!isNaN(val)) handleVideoDurationChange(val);
+                                    }}
+                                    style={{
+                                        width: '70px',
+                                        padding: '0.4rem',
+                                        borderRadius: '6px',
+                                        border: '1px solid var(--border-color)',
+                                        background: 'rgba(0,0,0,0.3)',
+                                        color: 'white',
+                                        textAlign: 'center'
+                                    }}
+                                />
+                            </div>
+                            <span style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.4rem' }}>
+                                💡 仅在 JSON 模式下生效。若设置了口播文案(captions)，此设置将覆盖默认的语音时长。若 captions 为空，则以此时间为准。
+                            </span>
+                        </div>
                     </div>
                 </div>
             )}
@@ -558,6 +678,25 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
                             💡 提示：详细的描述能帮助 LLM 更好地决定素材的展示时机。
                         </p>
                     )}
+                    {/* Media Volume Slider */}
+                    <div style={{ marginTop: '1.2rem', paddingTop: '1.2rem', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
+                            <span>视频素材音量 (Media Volume)</span>
+                            <span style={{ color: 'var(--accent-primary)' }}>{Math.round(mediaVolume * 100)}%</span>
+                        </div>
+                        <input
+                            type="range"
+                            min="0"
+                            max="1"
+                            step="0.05"
+                            value={mediaVolume}
+                            onChange={(e) => handleMediaVolumeChange(parseFloat(e.target.value))}
+                            style={{ width: '100%', accentColor: 'var(--accent-primary)', cursor: 'pointer' }}
+                        />
+                        <span style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.4rem' }}>
+                            💡 仅对视频类型的素材生效。如果设置为 0，视频将被静音播放。
+                        </span>
+                    </div>
                 </div>
             </div>
 
@@ -574,6 +713,18 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
                             <option key={b} value={b}>{b}</option>
                         ))}
                     </select>
+                    <div style={{ marginTop: '1rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
+                            <span>背景音乐音量 (BGM Volume)</span>
+                            <span style={{ color: 'var(--accent-primary)' }}>{Math.round(bgmVolume * 100)}%</span>
+                        </div>
+                        <input
+                            type="range" min="0" max="1" step="0.05"
+                            value={bgmVolume}
+                            onChange={(e) => handleBgmVolumeChange(parseFloat(e.target.value))}
+                            style={{ width: '100%', accentColor: 'var(--accent-primary)', cursor: 'pointer' }}
+                        />
+                    </div>
                     {bgm && bgm !== 'none' && (
                         <div style={{
                             marginTop: '0.8rem',
@@ -1260,6 +1411,21 @@ export const DynamicVideoForm: React.FC<DynamicVideoFormProps> = ({
                             {ttsEngine === 'voxcpm' && (
                                 <p style={{ margin: 0 }}>💡 <b>VoxCPM:</b> 可选择下方预设音色，或者上传自定义音频进行零样本（Zero-Shot）音色克隆。</p>
                             )}
+                        </div>
+                        <div className="form-group" style={{ marginTop: '1rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
+                                <span>语音合成音量 (TTS Volume)</span>
+                                <span style={{ color: 'var(--accent-primary)' }}>{Math.round(ttsVolume * 100)}%</span>
+                            </div>
+                            <input
+                                type="range"
+                                min="0"
+                                max="1"
+                                step="0.05"
+                                value={ttsVolume}
+                                onChange={(e) => handleTtsVolumeChange(parseFloat(e.target.value))}
+                                style={{ width: '100%', accentColor: 'var(--accent-primary)', cursor: 'pointer' }}
+                            />
                         </div>
                         <div className="form-group" style={{ marginTop: '1rem' }}>
                             <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '0.5rem' }}>最大重试次数 (LLM 纠错)</label>

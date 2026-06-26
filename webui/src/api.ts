@@ -388,6 +388,10 @@ export interface DynamicVideoOptions {
   maxRetries?: number;
   mode?: 'prompt' | 'json' | 'voiceover';
   alsoGenerateLandscape?: boolean;
+  ttsVolume?: number;
+  mediaVolume?: number;
+  bgmVolume?: number;
+  videoDuration?: number;
 }
 
 export const generateDynamicVideo = async (options: DynamicVideoOptions): Promise<string> => {
@@ -417,6 +421,18 @@ export const generateDynamicVideo = async (options: DynamicVideoOptions): Promis
   }
   if (options.alsoGenerateLandscape !== undefined) {
     formData.append('also_generate_landscape', String(options.alsoGenerateLandscape));
+  }
+  if (options.ttsVolume !== undefined) {
+    formData.append('tts_volume', String(options.ttsVolume));
+  }
+  if (options.mediaVolume !== undefined) {
+    formData.append('media_volume', String(options.mediaVolume));
+  }
+  if (options.bgmVolume !== undefined) {
+    formData.append('bgm_volume', String(options.bgmVolume));
+  }
+  if (options.videoDuration !== undefined) {
+    formData.append('video_duration', String(options.videoDuration));
   }
 
   const response = await fetch(`${API_BASE_URL}/dynamic_video`, {

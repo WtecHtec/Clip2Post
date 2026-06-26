@@ -22,6 +22,7 @@ export const TitleScene: React.FC<TemplateProps> = ({
   progressPercent = 25,
   fontMode,
   bgImage,
+  mediaVolume,
 }) => {
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
@@ -153,6 +154,7 @@ export const TitleScene: React.FC<TemplateProps> = ({
             images={images}
             videos={videos}
             startFrame={mediaStartFrame}
+            mediaVolume={mediaVolume}
           />
         )}
       </div>

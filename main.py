@@ -282,7 +282,11 @@ def process_dynamic_video_pipeline(
     aspect_ratio: str = "9:16",
     user_assets: List[Dict[str, Any]] = None,
     max_retries: int = 1,
-    also_generate_landscape: bool = False
+    also_generate_landscape: bool = False,
+    tts_volume: float = 1.0,
+    media_volume: float = 1.0,
+    bgm_volume: float = 0.15,
+    video_duration: float = None
 ):
     """Background task for LLM Dynamic Template Video generation."""
     task_manager = TaskManager(task_id=task_id)
@@ -298,7 +302,7 @@ def process_dynamic_video_pipeline(
 
             # 2. TTS Generation on template_props.get("voiceoverText")
             voiceover_text = template_props.get("voiceoverText") or "No narration content"
-            voiceover_text = re.sub(r'([a-zA-Z0-9])\.([a-zA-Z0-9])', r'\1点\2', voiceover_text)
+            voiceover_text = re.sub(r'(?<=[a-zA-Z0-9])\.(?=[a-zA-Z0-9])', '点', voiceover_text)
             
             task_manager.update_status(0.3, f"正在进行语音合成 ({tts_engine})...", "processing")
             task_dir = task_manager.get_dir("")
@@ -367,6 +371,9 @@ def process_dynamic_video_pipeline(
                 "images": images_list,
                 "videos": videos_list,
                 "assets": assets_list,
+                "ttsVolume": tts_volume,
+                "mediaVolume": media_volume,
+                "bgmVolume": bgm_volume,
             }
             if bgm:
                 import re
@@ -430,49 +437,60 @@ def process_dynamic_video_pipeline(
             except Exception as e:
                 raise ValueError(f"Failed to parse prompt as JSON: {e}")
 
-            # 2. TTS Generation on template_props.get("captions")
-            voiceover_text = template_props.get("captions") or template_props.get("bodyText") or template_props.get("title") or "No narration content"
-            voiceover_text = re.sub(r'([a-zA-Z0-9])\.([a-zA-Z0-9])', r'\1点\2', voiceover_text)
-            
-            task_manager.update_status(0.3, f"正在进行语音合成 ({tts_engine})...", "processing")
             task_dir = task_manager.get_dir("")
-            output_base = task_dir / "audio" / "tts_output"
-            output_base.parent.mkdir(parents=True, exist_ok=True)
-            
-            if tts_engine == "chattts":
-                from tts.chattts_processor import run_chattts_sync
-                audio_path, json_path = run_chattts_sync(
-                    voiceover_text, str(output_base), voice=voice,
-                    temperature=temperature, top_p=top_p, top_k=top_k, 
-                    speed=speed, refine_text_flag=refine_text
-                )
-            elif tts_engine == "omnivoice":
-                from tts.omnivoice_processor import run_omnivoice_tts_sync
-                audio_path, json_path = run_omnivoice_tts_sync(voiceover_text, str(output_base), voice_instruct=voice)
-            elif tts_engine == "voxcpm":
-                audio_path, json_path = run_voxcpm_tts_sync(voiceover_text, str(output_base), voice=voice)
-            elif tts_engine == "mlx":
-                audio_path, json_path = run_mlx_tts_sync(voiceover_text, str(output_base), voice=voice, speed=speed)
-            elif tts_engine == "kokoro":
-                from tts.kokoro_processor import run_kokoro_tts_sync
-                voice_k = voice or "af_heart"
-                audio_path, json_path = run_kokoro_tts_sync(voiceover_text, str(output_base), voice=voice_k)
-            else:
-                voice_e = voice or "zh-CN-XiaoxiaoNeural"
-                from tts.processor import run_tts_sync
-                audio_path, json_path = run_tts_sync(voiceover_text, str(output_base), voice=voice_e)
 
-            # 3. Read captions JSON for duration calculation
-            with open(json_path, 'r', encoding='utf-8') as f:
-                captions_timing = json.load(f)
+            # 2. TTS Generation on template_props.get("captions")
+            voiceover_text = template_props.get("captions")
             
-            # Clean Chinese and English punctuation from captions
-            import re
-            for c in captions_timing:
-                if "text" in c:
-                    c["text"] = re.sub(r'\[.*?\]\s*', '', c["text"]).strip()
-                    c["text"] = re.sub(r'[，。！？、；：“”‘’（）《》【】.,!?;:\'\"()\[\]<>\-~]', '', c["text"]).strip()
+            # Check if captions is provided and not empty
+            has_tts = voiceover_text is not None and len(str(voiceover_text).strip()) > 0
             
+            if has_tts:
+                voiceover_text = re.sub(r'(?<=[a-zA-Z0-9])\.(?=[a-zA-Z0-9])', '点', str(voiceover_text))
+                task_manager.update_status(0.3, f"正在进行语音合成 ({tts_engine})...", "processing")
+                output_base = task_dir / "audio" / "tts_output"
+                output_base.parent.mkdir(parents=True, exist_ok=True)
+                
+                if tts_engine == "chattts":
+                    from tts.chattts_processor import run_chattts_sync
+                    audio_path, json_path = run_chattts_sync(
+                        voiceover_text, str(output_base), voice=voice,
+                        temperature=temperature, top_p=top_p, top_k=top_k, 
+                        speed=speed, refine_text_flag=refine_text
+                    )
+                elif tts_engine == "omnivoice":
+                    from tts.omnivoice_processor import run_omnivoice_tts_sync
+                    audio_path, json_path = run_omnivoice_tts_sync(voiceover_text, str(output_base), voice_instruct=voice)
+                elif tts_engine == "voxcpm":
+                    audio_path, json_path = run_voxcpm_tts_sync(voiceover_text, str(output_base), voice=voice)
+                elif tts_engine == "mlx":
+                    audio_path, json_path = run_mlx_tts_sync(voiceover_text, str(output_base), voice=voice, speed=speed)
+                elif tts_engine == "kokoro":
+                    from tts.kokoro_processor import run_kokoro_tts_sync
+                    voice_k = voice or "af_heart"
+                    audio_path, json_path = run_kokoro_tts_sync(voiceover_text, str(output_base), voice=voice_k)
+                else:
+                    voice_e = voice or "zh-CN-XiaoxiaoNeural"
+                    from tts.processor import run_tts_sync
+                    audio_path, json_path = run_tts_sync(voiceover_text, str(output_base), voice=voice_e)
+
+                # 3. Read captions JSON for duration calculation
+                with open(json_path, 'r', encoding='utf-8') as f:
+                    captions_timing = json.load(f)
+                
+                # Clean Chinese and English punctuation from captions
+                import re
+                for c in captions_timing:
+                    if "text" in c:
+                        c["text"] = re.sub(r'\[.*?\]\s*', '', c["text"]).strip()
+                        c["text"] = re.sub(r'[，。！？、；：“”‘’（）《》【】.,!?;:\'\"()\[\]<>\-~]', '', c["text"]).strip()
+                
+                audio_rel_path = f"tasks/{task_id}/audio/{Path(audio_path).name}"
+            else:
+                task_manager.update_status(0.3, "跳过语音合成 (无 captions)...", "processing")
+                audio_rel_path = None
+                captions_timing = []
+
             # Map user uploaded assets to images and videos
             images_list = []
             videos_list = []
@@ -485,7 +503,16 @@ def process_dynamic_video_pipeline(
                     else:
                         images_list.append(asset_rel)
 
-            audio_rel_path = f"tasks/{task_id}/audio/{Path(audio_path).name}"
+            # Combine the user template_props with calculated assets and audio
+            props = {
+                **template_props,
+                "audioPath": audio_rel_path,
+                "images": images_list if images_list else template_props.get("images", []),
+                "videos": videos_list if videos_list else template_props.get("videos", []),
+                "ttsVolume": template_props.get("ttsVolume", tts_volume),
+                "mediaVolume": template_props.get("mediaVolume", media_volume),
+                "bgmVolume": template_props.get("bgmVolume", bgm_volume),
+            }
             
             # Check if there are background images in the bgImages folder
             bg_images_dir = Path(__file__).parent / "bgImages"
@@ -499,14 +526,6 @@ def process_dynamic_video_pipeline(
                         bg_image = user_bg
                     else:
                         bg_image = bg_files[0]
-
-            # Combine the user template_props with calculated assets and audio
-            props = {
-                **template_props,
-                "audioPath": audio_rel_path,
-                "images": images_list if images_list else template_props.get("images", []),
-                "videos": videos_list if videos_list else template_props.get("videos", []),
-            }
             if bg_image:
                 props["bgImage"] = props.get("bgImage") or bg_image
             if bgm:
@@ -531,11 +550,16 @@ def process_dynamic_video_pipeline(
             task_manager.update_status(0.6, "正在合成视频...", "processing")
             
             video_output = task_manager.get_dir("videos") / "remotion_video.mp4"
-            total_duration_ms = captions_timing[-1]["endMs"] if captions_timing else 3000
             
-            # For AITemplate: Outro duration is 2 seconds (60 frames at 30fps)
-            # Add extra buffer of 60 frames for the outro scene + title duration
-            duration_frames = int((total_duration_ms / 1000) * 30) + 60
+            if has_tts and captions_timing:
+                total_duration_ms = captions_timing[-1]["endMs"]
+                duration_frames = int((total_duration_ms / 1000) * 30) + 60
+            else:
+                custom_duration = template_props.get("videoDuration") or template_props.get("duration") or video_duration
+                if custom_duration is not None:
+                    duration_frames = int(float(custom_duration) * 30)
+                else:
+                    duration_frames = 300 # default 10 seconds
             
             comp_id = "AITemplate16-9" if aspect_ratio == "16:9" else "AITemplate"
             from video.remotion_renderer import run_remotion_render
@@ -611,7 +635,7 @@ def process_dynamic_video_pipeline(
         
         voiceover_text = " ".join([s.get("text", "") for s in scenes])
         # 优化语音合成：将字母、数字之间的“.”转换为“点”，确保 TTS 正确读出
-        voiceover_text = re.sub(r'([a-zA-Z0-9])\.([a-zA-Z0-9])', r'\1点\2', voiceover_text)
+        voiceover_text = re.sub(r'(?<=[a-zA-Z0-9])\.(?=[a-zA-Z0-9])', '点', voiceover_text)
         task_dir = task_manager.get_dir("")
         output_base = task_dir / "audio" / "tts_output"
         output_base.parent.mkdir(parents=True, exist_ok=True)
@@ -650,8 +674,8 @@ def process_dynamic_video_pipeline(
                 # text = re.sub(r'\[.*?\]\s*', '', c["text"]).strip()
         
                 text = c["text"]
-                # 优化数字格式：将“66点2”转换为“66.2”用于字幕展示
-                c["text"] = re.sub(r'(\d)点(\d)', r'\1.\2', text)
+                # 优化数字和字母格式：将“66点2”/“a点b”转换为“66.2”/“a.b”用于字幕展示
+                c["text"] = re.sub(r'(?<=[a-zA-Z0-9])点(?=[a-zA-Z0-9])', '.', text)
         
                 scene = scenes[current_scene_idx] if current_scene_idx < len(scenes) else scenes[-1]
                 
@@ -695,7 +719,10 @@ def process_dynamic_video_pipeline(
             "captions": captions,
             "audioUrl": f"http://127.0.0.1:8000/tasks/{task_id}/audio/{Path(audio_path).name}",
             "visual_style": visual_style,
-            "aspect_ratio": aspect_ratio
+            "aspect_ratio": aspect_ratio,
+            "ttsVolume": tts_volume,
+            "mediaVolume": media_volume,
+            "bgmVolume": bgm_volume,
         }
         if bgm:
             import re
@@ -1897,7 +1924,11 @@ async def generate_dynamic_video(
     also_generate_landscape: bool = Form(False),
     files: List[UploadFile] = File(None),
     image_descriptions: str = Form("[]"),  # JSON string: ["desc1", "desc2"]
-    max_retries: int = Form(1)
+    max_retries: int = Form(1),
+    tts_volume: float = Form(1.0),
+    media_volume: float = Form(1.0),
+    bgm_volume: float = Form(0.15),
+    video_duration: float = Form(None)
 ):
     """Endpoint for LLM Dynamic Template Video generation."""
     task_manager = TaskManager()
@@ -1958,7 +1989,11 @@ async def generate_dynamic_video(
             "top_k": top_k,
             "speed": speed,
             "refine_text": refine_text,
-            "max_retries": max_retries
+            "max_retries": max_retries,
+            "tts_volume": tts_volume,
+            "media_volume": media_volume,
+            "bgm_volume": bgm_volume,
+            "video_duration": video_duration
         }, f, ensure_ascii=False, indent=2)
 
     background_tasks.add_task(
@@ -1977,7 +2012,11 @@ async def generate_dynamic_video(
         aspect_ratio=aspect_ratio,
         user_assets=user_assets, # Updated from user_images
         max_retries=max_retries,
-        also_generate_landscape=also_generate_landscape
+        also_generate_landscape=also_generate_landscape,
+        tts_volume=tts_volume,
+        media_volume=media_volume,
+        bgm_volume=bgm_volume,
+        video_duration=video_duration
     )
     
     return {"task_id": task_id, "message": "Dynamic Video Task started."}
@@ -2082,7 +2121,7 @@ def generate_tts_api(
         # Preprocess text to convert dot patterns to "点" for proper TTS reading:
         # e.g., "1.2" -> "1点2", "a.b" -> "a点b"
         import re
-        processed_text = re.sub(r'([a-zA-Z0-9])\.([a-zA-Z0-9])', r'\1点\2', text)
+        processed_text = re.sub(r'(?<=[a-zA-Z0-9])\.(?=[a-zA-Z0-9])', '点', text)
 
         # Generate TTS
         if tts_engine == "kokoro":
@@ -2129,7 +2168,7 @@ def generate_tts_api(
                     # Restore "点" to "." for letters and digits combinations in captions
                     for c in captions:
                         if "text" in c and c["text"]:
-                            c["text"] = re.sub(r'([a-zA-Z0-9])点([a-zA-Z0-9])', r'\1.\2', c["text"])
+                            c["text"] = re.sub(r'(?<=[a-zA-Z0-9])点(?=[a-zA-Z0-9])', '.', c["text"])
                 except Exception as e:
                     print(f"Error reading TTS JSON file {json_file_path}: {e}")
 
@@ -2168,6 +2207,13 @@ def process_regeneration_task(task_id: str):
             with open(props_path, "r", encoding="utf-8") as f:
                 props = json.load(f)
             
+            if "ttsVolume" not in props:
+                props["ttsVolume"] = meta.get("tts_volume", 1.0)
+            if "mediaVolume" not in props:
+                props["mediaVolume"] = meta.get("media_volume", 1.0)
+            if "bgmVolume" not in props:
+                props["bgmVolume"] = meta.get("bgm_volume", 0.15)
+
             audio_dir = task_manager.get_dir("audio")
             shuo_json_path = audio_dir / "shuo.json"
             
@@ -2181,28 +2227,33 @@ def process_regeneration_task(task_id: str):
                 with open(json_path, 'r', encoding='utf-8') as f:
                     captions_timing = json.load(f)
                 total_duration_ms = captions_timing[-1]["endMs"] if captions_timing else 3000
-            else:
-                total_duration_ms = 3000
-
-            # Calculate max video asset duration for regeneration
-            max_video_duration_ms = 0
-            if meta.get("mode") == "voiceover":
-                import ffmpeg
-                for v in props.get("videos", []):
-                    filename = Path(v).name
-                    local_path = task_dir / "assets" / filename
-                    if local_path.exists():
-                        try:
-                            probe = ffmpeg.probe(str(local_path))
-                            duration = float(probe['format']['duration'])
-                            max_video_duration_ms = max(max_video_duration_ms, int(duration * 1000))
-                        except Exception as e:
-                            print(f"Error probing video {local_path}: {e}")
-
-            if max_video_duration_ms > total_duration_ms:
-                total_duration_ms = max_video_duration_ms
                 
-            duration_frames = int((total_duration_ms / 1000) * 30) + 15
+                # Calculate max video asset duration for regeneration
+                max_video_duration_ms = 0
+                if meta.get("mode") == "voiceover":
+                    import ffmpeg
+                    for v in props.get("videos", []):
+                        filename = Path(v).name
+                        local_path = task_dir / "assets" / filename
+                        if local_path.exists():
+                            try:
+                                probe = ffmpeg.probe(str(local_path))
+                                duration = float(probe['format']['duration'])
+                                max_video_duration_ms = max(max_video_duration_ms, int(duration * 1000))
+                            except Exception as e:
+                                print(f"Error probing video {local_path}: {e}")
+
+                if max_video_duration_ms > total_duration_ms:
+                    total_duration_ms = max_video_duration_ms
+                    
+                buffer = 15 if meta.get("mode") == "voiceover" else 60
+                duration_frames = int((total_duration_ms / 1000) * 30) + buffer
+            else:
+                custom_duration = props.get("videoDuration") or props.get("duration") or meta.get("video_duration")
+                if custom_duration is not None:
+                    duration_frames = int(float(custom_duration) * 30)
+                else:
+                    duration_frames = 300 # default 10s if no captions/audio
             
             import time
             timestamp = time.strftime("%Y%m%d_%H%M%S")

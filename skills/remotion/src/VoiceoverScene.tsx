@@ -35,6 +35,9 @@ export const VoiceoverSceneSchema = z.object({
     theme: z.string().optional().default('dark'),
     audioPath: z.string().optional(),
     bgmPath: z.string().optional(),
+    ttsVolume: z.number().optional().default(1.0),
+    mediaVolume: z.number().optional().default(1.0),
+    bgmVolume: z.number().optional().default(0.15),
 });
 
 const PRESET_THEMES: Record<string, { bg: string; text: string }> = {
@@ -54,6 +57,9 @@ export const VoiceoverScene: React.FC<z.infer<typeof VoiceoverSceneSchema>> = ({
     theme = 'dark',
     audioPath,
     bgmPath,
+    ttsVolume = 1.0,
+    mediaVolume = 1.0,
+    bgmVolume = 0.15,
 }) => {
     const frame = useCurrentFrame();
     const { fps, durationInFrames } = useVideoConfig();
@@ -110,14 +116,17 @@ export const VoiceoverScene: React.FC<z.infer<typeof VoiceoverSceneSchema>> = ({
         <AbsoluteFill style={{ backgroundColor: '#050505', fontFamily }}>
             {/* Audio: Narrator Voiceover */}
             {audioPath && (
-                <Audio src={audioPath.startsWith('http') || audioPath.startsWith('/') ? audioPath : staticFile(audioPath)} />
+                <Audio 
+                    src={audioPath.startsWith('http') || audioPath.startsWith('/') ? audioPath : staticFile(audioPath)} 
+                    volume={ttsVolume}
+                />
             )}
 
             {/* Audio: Background Music */}
             {bgmPath && (
                 <Audio 
                     src={bgmPath.startsWith('http') || bgmPath.startsWith('/') ? bgmPath : staticFile(`bgm/${bgmPath}`)} 
-                    volume={0.15} 
+                    volume={bgmVolume} 
                 />
             )}
 
@@ -134,8 +143,8 @@ export const VoiceoverScene: React.FC<z.infer<typeof VoiceoverSceneSchema>> = ({
                             transform: `scale(${bgScale})`,
                         }}
                         loop
-                        muted
-                        volume={0}
+                        muted={mediaVolume === 0}
+                        volume={mediaVolume}
                     />
                 )}
 

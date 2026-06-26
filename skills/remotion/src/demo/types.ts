@@ -14,4 +14,8 @@ export interface TemplateProps {
   fontMode?: string;       // 字体模式，支持 'default' | 'pixel' | 'techy' | 'cute'
   bgImage?: string;        // 背景图像文件名或URL
   bgImageOpacity?: number; // 背景图像不透明度，默认 0.15
+  ttsVolume?: number;      // TTS 音量
+  mediaVolume?: number;    // 媒体视频音量
+  bgmVolume?: number;      // BGM 音量
+  videoDuration?: number;   // 视频总时长 (秒)
 }

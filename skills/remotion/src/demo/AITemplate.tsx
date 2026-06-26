@@ -68,6 +68,7 @@ export const AITemplate: React.FC<TemplateProps> = (props) => {
       {audioUrl && (
         <Audio
           src={audioUrl.startsWith('http') || audioUrl.startsWith('/') ? audioUrl : staticFile(audioUrl)}
+          volume={props.ttsVolume !== undefined ? props.ttsVolume : 1.0}
         />
       )}
 
@@ -75,7 +76,7 @@ export const AITemplate: React.FC<TemplateProps> = (props) => {
       {bgmUrl && (
         <Audio
           src={bgmUrl.startsWith('http') || bgmUrl.startsWith('/') ? bgmUrl : staticFile(`bgm/${bgmUrl}`)}
-          volume={0.15}
+          volume={props.bgmVolume !== undefined ? props.bgmVolume : 0.15}
         />
       )}
 

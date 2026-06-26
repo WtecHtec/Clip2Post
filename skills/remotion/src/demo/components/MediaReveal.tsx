@@ -15,12 +15,14 @@ interface MediaRevealProps {
   videos?: string[];
   // 展开动画从第几帧开始（标题显示完之后）
   startFrame?: number;
+  mediaVolume?: number;
 }
 
 export const MediaReveal: React.FC<MediaRevealProps> = ({
   images = [],
   videos = [],
   startFrame = 60,
+  mediaVolume = 1.0,
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -106,8 +108,8 @@ export const MediaReveal: React.FC<MediaRevealProps> = ({
               objectFit: 'contain', // 完整显示，不压缩
             }}
             loop
-            muted
-            volume={0}
+            muted={mediaVolume === 0}
+            volume={mediaVolume}
           />
         )}
 
