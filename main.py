@@ -2107,7 +2107,8 @@ def generate_tts_api(
     top_k: int = Form(20),
     speed: float = Form(5.0),
     refine_text: bool = Form(True),
-    save_path: str = Form(...)
+    save_path: str = Form(...),
+    caption_save_path: Optional[str] = Form(None)
 ):
     """Independent API to generate TTS audio and save it to the specified path."""
     try:
@@ -2172,9 +2173,22 @@ def generate_tts_api(
                 except Exception as e:
                     print(f"Error reading TTS JSON file {json_file_path}: {e}")
 
+        # Write captions data to caption_save_path if it is provided
+        caption_path_to_return = None
+        if caption_save_path:
+            try:
+                caption_output_path = Path(caption_save_path)
+                caption_output_path.parent.mkdir(parents=True, exist_ok=True)
+                with open(caption_output_path, "w", encoding="utf-8") as f:
+                    json.dump(captions, f, ensure_ascii=False, indent=2)
+                caption_path_to_return = str(caption_output_path)
+            except Exception as e:
+                print(f"Error writing captions to {caption_save_path}: {e}")
+
         return {
             "status": "success",
             "save_path": audio_path_to_return,
+            "caption_save_path": caption_path_to_return,
             "captions": captions
         }
 

@@ -256,6 +256,7 @@
 - **请求参数**:
   - `text`: `str` (必填，文本内容)
   - `save_path`: `str` (必填，生成的音频写入路径，例如：`test_omnivoice.wav`)
+  - `caption_save_path`: `str` (可选，生成的 captions 字幕 JSON 写入路径，如果提供则会将 captions 数据写入该文件)
   - `tts_engine`: `str` (默认: `edge`，可选 `omnivoice`, `kokoro`, `chattts`, `voxcpm`, `mlx` 等)
   - `voice`: `str` (风格或克隆音色路径)
   - `temperature` / `top_p` / `top_k` / `speed` / `refine_text`: 调音与生成参数
@@ -264,6 +265,7 @@
   {
     "status": "success",
     "save_path": "test_omnivoice.wav",
+    "caption_save_path": "test_omnivoice.json",
     "captions": [
       {
         "text": "你好",
