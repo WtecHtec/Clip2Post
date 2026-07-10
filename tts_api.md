@@ -18,6 +18,7 @@
 | :--- | :--- | :---: | :--- | :--- |
 | `text` | string | **是** | 无 | 需要转换为语音的文本内容。 |
 | `save_path` | string | **是** | 无 | 语音文件的保存路径（相对或绝对路径），例如：`test_omnivoice.wav`。 |
+| `caption_save_path` | string | 否 | 无 | 对齐字幕数据的保存路径，若传入此参数则将 captions JSON 数据写入该路径。 |
 | `tts_engine` | string | 否 | `edge` | 使用的 TTS 引擎名称。可选值包括：<br>• `omnivoice` (推荐使用)<br>• `kokoro`<br>• `chattts`<br>• `edge`<br>• `voxcpm`<br>• `mlx` |
 | `voice` | string | 否 | 无 | 声音风格、角色、语气描述等（如 `男`, `女` 或具体情绪指令）。 |
 | `temperature` | float | 否 | `0.3` | 生成随机度（针对支持该参数的引擎，如 ChatTTS）。 |
@@ -54,6 +55,7 @@ OmniVoice 支持丰富的自然语言语气/风格描述，也可使用以下预
 {
   "status": "success",
   "save_path": "test_omnivoice.wav",
+  "caption_save_path": "test_omnivoice.json",
   "captions": [
     {
       "text": "你好",

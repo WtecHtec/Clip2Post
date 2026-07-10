@@ -27,3 +27,4 @@ voxcpm
 mlx-audio
 misaki[zh,en]
 num2words
+qwen-asr
