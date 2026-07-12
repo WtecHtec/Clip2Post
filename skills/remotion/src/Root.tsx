@@ -8,10 +8,30 @@ import { NewsScene, NewsSceneSchema } from './NewsScene';
 import { AITemplate } from './demo/AITemplate';
 import { AITemplateLandscape } from './demo/AITemplateLandscape';
 import { VoiceoverScene, VoiceoverSceneSchema } from './VoiceoverScene';
+import { PexelsVideoScene, PexelsVideoSceneSchema } from './PexelsVideoScene';
 
 export const RemotionRoot = () => {
 	return (
 		<>
+			<Composition
+				id="PexelsVideoScene"
+				component={PexelsVideoScene}
+				durationInFrames={300}
+				fps={30}
+				width={1080}
+				height={1920}
+				schema={PexelsVideoSceneSchema}
+				defaultProps={{
+					title: '这是一个标题',
+					captions: [
+						{ text: '欢迎来到 Pexels 视频背景字幕模式', startMs: 0, endMs: 2000 },
+						{ text: '这是一个非常强大的视频生成工具', startMs: 2100, endMs: 5000 },
+					],
+					audioPath: 'tasks/dummy_audio.wav',
+					videoPath: 'tasks/dummy_video.mp4',
+					subtitleLayout: 'scroll',
+				}}
+			/>
 			<Composition
 				id="AITemplate"
 				component={AITemplate}

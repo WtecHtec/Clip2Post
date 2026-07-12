@@ -13,6 +13,16 @@ from config.settings import (
     QWEN_ASR_MODEL, QWEN_FORCED_ALIGNER
 )
 
+# Patch torchaudio deprecations (specifically for pyannote.audio used in whisperx)
+try:
+    import torchaudio
+    if not hasattr(torchaudio, "AudioMetaData"):
+        torchaudio.AudioMetaData = type('AudioMetaData', (object,), {})
+    if not hasattr(torchaudio, "list_audio_backends"):
+        torchaudio.list_audio_backends = lambda: ['soundfile']
+except ImportError:
+    pass
+
 import torch
 
 class ASRRecognizer:

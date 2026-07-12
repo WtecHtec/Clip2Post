@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Loader2, CheckCircle2, AlertCircle, Video, FileText, Type, Sparkles, Music, Settings as SettingsIcon, Image as ImageIcon, MessageSquare } from 'lucide-react';
+import { Loader2, CheckCircle2, AlertCircle, Video, FileText, Type, Sparkles, Music, Settings as SettingsIcon, Image as ImageIcon, MessageSquare, Search } from 'lucide-react';
 import { uploadVideo, pollStatus, fetchResults, fetchTasks, generateTTSVideo } from './api';
 import type { TaskStatus, TaskResults, UploadOptions, TaskOverview, TTSOptions } from './api';
 
@@ -11,12 +11,13 @@ import { AudioVideoForm } from './components/AudioVideoForm';
 import { ImageVideoForm } from './components/ImageVideoForm';
 import { NewsVideoForm } from './components/NewsVideoForm';
 import { DynamicVideoForm } from './components/DynamicVideoForm';
+import { PexelsVideoForm } from './components/PexelsVideoForm';
 import { ResultsDisplay } from './components/ResultsDisplay';
 import { SettingsPanel } from './components/SettingsPanel';
 import type { LLMSettings } from './components/SettingsPanel';
 
 function App() {
-  const [workflowMode, setWorkflowMode] = useState<'video-to-post' | 'text-to-video' | 'audio-to-video' | 'image-to-video' | 'news-video' | 'dynamic-video'>('video-to-post');
+  const [workflowMode, setWorkflowMode] = useState<'video-to-post' | 'text-to-video' | 'audio-to-video' | 'image-to-video' | 'news-video' | 'dynamic-video' | 'pexels-video'>('video-to-post');
   const [tasks, setTasks] = useState<TaskOverview[]>([]);
   const [file, setFile] = useState<File | null>(null);
   const [videoUrl, setVideoUrl] = useState<string>('');
@@ -285,6 +286,13 @@ function App() {
                 <Sparkles size={18} />
                 LLM Dynamic
               </button>
+              <button
+                className={workflowMode === 'pexels-video' ? 'segmented-btn active' : 'segmented-btn'}
+                onClick={() => { setWorkflowMode('pexels-video'); resetToUpload(); }}
+              >
+                <Search size={18} />
+                Pexels Background
+              </button>
             </div>
           </div>
 
@@ -347,6 +355,14 @@ function App() {
               ) : workflowMode === 'dynamic-video' ? (
                 <DynamicVideoForm
                   onGenerate={handleDynamicVideoGenerate}
+                  disabled={status?.state === 'pending' || status?.state === 'processing'}
+                />
+              ) : workflowMode === 'pexels-video' ? (
+                <PexelsVideoForm
+                  onTaskStarted={(id) => {
+                    setTaskId(id);
+                    loadTasks();
+                  }}
                   disabled={status?.state === 'pending' || status?.state === 'processing'}
                 />
               ) : (

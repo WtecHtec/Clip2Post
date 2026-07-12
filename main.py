@@ -2097,6 +2097,114 @@ async def audio_render(
     background_tasks.add_task(render_job)
     return {"task_id": task_id, "message": "Render started."}
 
+
+@app.post("/api/pexels_video_generate")
+async def pexels_video_generate(
+    background_tasks: BackgroundTasks,
+    video: UploadFile = File(...),
+    title: Optional[str] = Form(""),
+    search_query: Optional[str] = Form(""),
+    asr_engine: str = Form("funasr"),
+    subtitle_layout: str = Form("scroll"),
+    bgm: Optional[str] = Form(""),
+    media_volume: float = Form(1.0),
+    bgm_volume: float = Form(0.15)
+):
+    """Unified single-step pipeline to save video, extract audio, run ASR to get subtitles,
+    download background video from Pexels, and render the final Remotion template.
+    """
+    task_manager = TaskManager()
+    task_id = task_manager.task_id
+    
+    # Create directories
+    video_dir = task_manager.get_dir("video")
+    audio_dir = task_manager.get_dir("audio")
+    subtitle_dir = task_manager.get_dir("subtitle")
+    
+    # Save uploaded video
+    video_path = video_dir / "uploaded_video.mp4"
+    with open(video_path, "wb") as buffer:
+        shutil.copyfileobj(video.file, buffer)
+        
+    task_manager.update_status(0.05, "任务初始化成功，准备执行...", "processing", task_type="standard")
+    
+    def process_pipeline():
+        try:
+            # Step 1: Extract audio track
+            task_manager.update_status(0.15, "正在提取视频音频...", "processing")
+            from video.processor import extract_audio
+            audio_path = audio_dir / "audio.wav"
+            extract_audio(video_path, audio_path)
+            
+            # Step 2: Run ASR for subtitles
+            task_manager.update_status(0.3, f"正在提取视频字幕 ({asr_engine})...", "processing")
+            subtitle_path = subtitle_dir / "subtitle.txt"
+            from asr.recognizer import ASRRecognizer
+            asr_model = ASRRecognizer(asr_type=asr_engine)
+            _, segments = asr_model.recognize(audio_path, subtitle_path)
+            
+            # Step 3: Search and download video from Pexels
+            video_rel_path = ""
+            query_to_use = search_query.strip() if search_query and search_query.strip() else ""
+            if query_to_use:
+                task_manager.update_status(0.5, f"正在从 Pexels 搜索视频: {query_to_use}...", "processing")
+                from config.settings import PEXELS_API_KEY
+                from video.downloader import VideoDownloader
+                local_video_path = video_dir / "pexels_video.mp4"
+                
+                success = VideoDownloader.search_and_download_pexels_video(
+                    query=query_to_use,
+                    api_key=PEXELS_API_KEY,
+                    output_path=local_video_path
+                )
+                if success:
+                    video_rel_path = f"tasks/{task_id}/video/pexels_video.mp4"
+                else:
+                    task_manager.update_status(0.6, "未找到匹配视频，将使用渐变背景", "processing")
+            
+            # Step 4: Write Remotion properties
+            audio_rel_path = f"tasks/{task_id}/audio/audio.wav"
+            props = {
+                "title": title or "",
+                "captions": segments,
+                "audioPath": audio_rel_path,
+                "videoPath": video_rel_path,
+                "subtitleLayout": subtitle_layout,
+                "bgmPath": bgm if bgm and bgm != "none" else None,
+                "audioVolume": media_volume,
+                "bgmVolume": bgm_volume
+            }
+            
+            props_path = task_manager.task_dir / "remotion_props.json"
+            with open(props_path, 'w', encoding='utf-8') as f:
+                json.dump(props, f, ensure_ascii=False, indent=2)
+                
+            # Set video duration based on the last caption end time
+            total_duration_ms = segments[-1]["endMs"] if segments else 5000
+            duration_frames = int((total_duration_ms / 1000) * 30) + 30
+            
+            # Step 5: Render video in Remotion
+            task_manager.update_status(0.75, "正在合成视频...", "processing")
+            video_output = task_manager.get_dir("videos") / "remotion_video.mp4"
+            from video.remotion_renderer import run_remotion_render
+            run_remotion_render(
+                props_path,
+                video_output,
+                duration_frames=duration_frames,
+                composition_id="PexelsVideoScene"
+            )
+            
+            task_manager.update_status(1.0, "合成成功！", "completed")
+        except Exception as e:
+            import traceback
+            print(traceback.format_exc())
+            task_manager.update_status(1.0, f"处理失败: {str(e)}", "error")
+            
+    background_tasks.add_task(process_pipeline)
+    return {"task_id": task_id, "message": "Pexels video generation task started."}
+
+
+
 @app.post("/api/tts")
 def generate_tts_api(
     text: str = Form(...),

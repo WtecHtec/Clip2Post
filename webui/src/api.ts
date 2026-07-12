@@ -245,6 +245,41 @@ export const renderAudioVideo = async (taskId: string, shuoProps: any): Promise<
   }
 };
 
+export const generatePexelsVideo = async (options: {
+  videoFile: File;
+  title: string;
+  searchQuery: string;
+  asrEngine: string;
+  subtitleLayout: string;
+  bgm: string;
+  mediaVolume: number;
+  bgmVolume: number;
+}): Promise<string> => {
+  const formData = new FormData();
+  formData.append('video', options.videoFile);
+  formData.append('title', options.title);
+  formData.append('search_query', options.searchQuery);
+  formData.append('asr_engine', options.asrEngine);
+  formData.append('subtitle_layout', options.subtitleLayout);
+  formData.append('bgm', options.bgm);
+  formData.append('media_volume', options.mediaVolume.toString());
+  formData.append('bgm_volume', options.bgmVolume.toString());
+
+  const response = await fetch(`${API_BASE_URL}/pexels_video_generate`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    throw new Error(`Pexels video generation failed: ${response.statusText}`);
+  }
+
+  const result = await response.json();
+  return result.task_id;
+};
+
+
+
 export const fetchTasks = async (): Promise<TaskOverview[]> => {
   const response = await fetch(`${API_BASE_URL}/tasks`);
 
@@ -531,4 +566,3 @@ export const fetchDistributeLog = async (taskId: string, platform: string): Prom
   }
   return await response.json();
 };
-

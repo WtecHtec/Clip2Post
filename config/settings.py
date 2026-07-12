@@ -63,3 +63,7 @@ DEFAULT_TTS_VOICE = os.getenv("DEFAULT_TTS_VOICE", "男，老年")
 # Media Defaults
 DEFAULT_BGM = os.getenv("DEFAULT_BGM", "bgm/default_jazz.mp3")
 DEFAULT_BG = os.getenv("DEFAULT_BG", "image.png")
+
+# Pexels API Configuration
+PEXELS_API_KEY = os.getenv("PEXELS_API_KEY", "")
+
