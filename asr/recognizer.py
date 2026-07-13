@@ -86,20 +86,8 @@ class ASRRecognizer:
                     "metadata": metadata
                 }
             elif self.asr_type == "qwen3-asr":
-                from qwen_asr import Qwen3ASRModel
-                device = "mps" if torch.backends.mps.is_available() else ("cuda:0" if torch.cuda.is_available() else "cpu")
-                model = Qwen3ASRModel.from_pretrained(
-                    QWEN_ASR_MODEL,
-                    dtype=torch.float32 if device == "cpu" else torch.bfloat16,
-                    device_map=device,
-                    max_new_tokens=256,
-                    forced_aligner=QWEN_FORCED_ALIGNER,
-                    forced_aligner_kwargs=dict(
-                        dtype=torch.float32 if device == "cpu" else torch.bfloat16,
-                        device_map=device,
-                    ),
-                )
-                ASRRecognizer._MODEL_CACHE[self.asr_type] = model
+                # We do not load the model in-process anymore to avoid import/version conflicts
+                ASRRecognizer._MODEL_CACHE[self.asr_type] = "subprocess"
         else:
             print(f"--- 使用已缓存的 ASR 模型: {self.asr_type} ---")
 
@@ -245,92 +233,36 @@ class ASRRecognizer:
         return output_subtitle_path, sentences
 
     def _recognize_qwen3_asr(self, audio_path: Path, output_subtitle_path: Path, raw_output_path: Path = None) -> tuple[Path, list]:
-        """Qwen3-ASR implementation with forced aligner timestamps."""
-        model = ASRRecognizer._MODEL_CACHE["qwen3-asr"]
+        """Qwen3-ASR implementation using external subprocess with uv run."""
+        import subprocess
+        import json
+        import tempfile
         
-        results = model.transcribe(
-            audio=str(audio_path),
-            language=None,
-            return_time_stamps=True,
-        )
-        
-        full_text = []
-        sentences = []
-        
-        if results and len(results) > 0:
-            result = results[0]
-            full_text_str = result.text
-            full_text.append(full_text_str)
+        # Create a temp file to receive the JSON output
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as tmp:
+            json_temp_path = Path(tmp.name)
             
-            # Combine characters/words into sentences
-            if result.time_stamps:
-                punctuations = set("。！？，；,.!?,;")
-                current_sentence = ""
-                current_start_ms = None
-                current_end_ms = None
+        try:
+            # We run using uv run to dynamically create/use the transformers<5 environment
+            cmd = [
+                "uv", "run",
+                "--with", "transformers<5.0",
+                "--with", "qwen-asr",
+                "asr/qwen_asr_cli.py",
+                str(audio_path),
+                str(output_subtitle_path),
+                str(raw_output_path) if raw_output_path else "None",
+                str(json_temp_path)
+            ]
+            print(f"Running ASR in sandbox subprocess: {' '.join(cmd)}")
+            subprocess.run(cmd, check=True)
+            
+            # Read the sentences back from the temp JSON file
+            with open(json_temp_path, 'r', encoding='utf-8') as f:
+                sentences = json.load(f)
                 
-                ts_idx = 0
-                ts_list = result.time_stamps
-                
-                char_idx = 0
-                while char_idx < len(full_text_str):
-                    char = full_text_str[char_idx]
-                    
-                    if char == ' ':
-                        current_sentence += char
-                        char_idx += 1
-                        continue
-                        
-                    if char in punctuations:
-                        current_sentence += char
-                        if current_sentence.strip():
-                            sentences.append({
-                                "startMs": current_start_ms if current_start_ms is not None else 0,
-                                "endMs": current_end_ms if current_end_ms is not None else ((current_start_ms or 0) + 500),
-                                "text": current_sentence.strip()
-                            })
-                        current_sentence = ""
-                        current_start_ms = None
-                        char_idx += 1
-                        continue
-                        
-                    # Now match a token from ts_list
-                    if ts_idx < len(ts_list):
-                        ts = ts_list[ts_idx]
-                        if current_start_ms is None:
-                            current_start_ms = int(ts.start_time * 1000)
-                        current_end_ms = int(ts.end_time * 1000)
-                        
-                        current_sentence += ts.text
-                        char_idx += len(ts.text)
-                        ts_idx += 1
-                    else:
-                        current_sentence += char
-                        char_idx += 1
-
-                if current_sentence.strip():
-                    sentences.append({
-                        "startMs": current_start_ms if current_start_ms is not None else 0,
-                        "endMs": current_end_ms if current_end_ms is not None else ((current_start_ms or 0) + 500),
-                        "text": current_sentence.strip()
-                    })
-            else:
-                # Fallback if no timestamps returned for some reason
-                sentences.append({
-                    "startMs": 0,
-                    "endMs": 1000,
-                    "text": full_text_str.strip()
-                })
-                
-        if raw_output_path:
-            raw_output_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(raw_output_path, 'w', encoding='utf-8') as f:
-                f.write(" ".join(full_text))
-
-        output_subtitle_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(output_subtitle_path, 'w', encoding='utf-8') as f:
-            for sentence in sentences:
-                time_str = self.format_time(sentence['startMs'])
-                f.write(f"[{time_str}] {sentence['text']}\n\n")
-        
-        return output_subtitle_path, sentences
+            return output_subtitle_path, sentences
+        finally:
+            # Clean up the temp file
+            if json_temp_path.exists():
+                json_temp_path.unlink()
