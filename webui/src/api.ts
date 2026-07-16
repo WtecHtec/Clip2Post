@@ -254,6 +254,8 @@ export const generatePexelsVideo = async (options: {
   bgm: string;
   mediaVolume: number;
   bgmVolume: number;
+  bgVideoFile?: File | null;
+  bgVideoVolume?: number;
 }): Promise<string> => {
   const formData = new FormData();
   formData.append('video', options.videoFile);
@@ -264,6 +266,12 @@ export const generatePexelsVideo = async (options: {
   formData.append('bgm', options.bgm);
   formData.append('media_volume', options.mediaVolume.toString());
   formData.append('bgm_volume', options.bgmVolume.toString());
+  if (options.bgVideoFile) {
+    formData.append('bg_video', options.bgVideoFile);
+  }
+  if (options.bgVideoVolume !== undefined) {
+    formData.append('bg_video_volume', options.bgVideoVolume.toString());
+  }
 
   const response = await fetch(`${API_BASE_URL}/pexels_video_generate`, {
     method: 'POST',

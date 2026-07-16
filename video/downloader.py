@@ -54,7 +54,7 @@ class VideoDownloader:
         # We request portrait orientation specifically for vertical video format
         params = {
             "query": query,
-            "per_page": 5,
+            "per_page": 15,
             "orientation": "portrait"
         }
         
@@ -79,11 +79,10 @@ class VideoDownloader:
                 print(f"No videos found on Pexels for query: {query}")
                 return False
                 
-            # Select the best video link
-            video_url = None
+            # Collect all valid MP4 video links
+            valid_video_links = []
             for video in videos:
                 files = video.get("video_files", [])
-                # Prioritize mp4 files
                 mp4_files = [f for f in files if f.get("file_type") == "video/mp4" and f.get("link")]
                 if not mp4_files:
                     continue
@@ -91,16 +90,16 @@ class VideoDownloader:
                 # Prefer HD quality or vertical-like resolutions
                 hd_files = [f for f in mp4_files if f.get("quality") == "hd"]
                 if hd_files:
-                    video_url = hd_files[0]["link"]
+                    valid_video_links.append(hd_files[0]["link"])
                 else:
-                    video_url = mp4_files[0]["link"]
+                    valid_video_links.append(mp4_files[0]["link"])
                     
-                if video_url:
-                    break
-                    
-            if not video_url:
+            if not valid_video_links:
                 print("No valid MP4 video URL found in Pexels results.")
                 return False
+                
+            import random
+            video_url = random.choice(valid_video_links)
                 
             print(f"Downloading Pexels video from: {video_url}")
             res = requests.get(video_url, stream=True, timeout=30)

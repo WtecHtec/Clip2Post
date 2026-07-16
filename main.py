@@ -2108,7 +2108,9 @@ async def pexels_video_generate(
     subtitle_layout: str = Form("scroll"),
     bgm: Optional[str] = Form(""),
     media_volume: float = Form(1.0),
-    bgm_volume: float = Form(0.15)
+    bgm_volume: float = Form(0.15),
+    bg_video: Optional[UploadFile] = File(None),
+    bg_video_volume: float = Form(0.0)
 ):
     """Unified single-step pipeline to save video, extract audio, run ASR to get subtitles,
     download background video from Pexels, and render the final Remotion template.
@@ -2125,6 +2127,13 @@ async def pexels_video_generate(
     video_path = video_dir / "uploaded_video.mp4"
     with open(video_path, "wb") as buffer:
         shutil.copyfileobj(video.file, buffer)
+        
+    # Save uploaded background video if present
+    bg_video_path = None
+    if bg_video and bg_video.filename:
+        bg_video_path = video_dir / "custom_bg_video.mp4"
+        with open(bg_video_path, "wb") as buffer:
+            shutil.copyfileobj(bg_video.file, buffer)
         
     task_manager.update_status(0.05, "任务初始化成功，准备执行...", "processing", task_type="standard")
     
@@ -2143,10 +2152,19 @@ async def pexels_video_generate(
             asr_model = ASRRecognizer(asr_type=asr_engine)
             _, segments = asr_model.recognize(audio_path, subtitle_path)
             
-            # Step 3: Search and download video from Pexels
-            video_rel_path = ""
-            query_to_use = search_query.strip() if search_query and search_query.strip() else ""
-            if query_to_use:
+            # Step 3: Search and download video from Pexels (or use custom)
+            has_custom_bg = bg_video_path and bg_video_path.exists()
+            has_search_query = bool(search_query.strip()) if search_query else False
+            generate_both = has_custom_bg and has_search_query
+
+            video_rel_path_custom = ""
+            video_rel_path_pexels = ""
+            
+            if has_custom_bg:
+                video_rel_path_custom = f"tasks/{task_id}/video/custom_bg_video.mp4"
+                
+            if has_search_query:
+                query_to_use = search_query.strip()
                 task_manager.update_status(0.5, f"正在从 Pexels 搜索视频: {query_to_use}...", "processing")
                 from config.settings import PEXELS_API_KEY
                 from video.downloader import VideoDownloader
@@ -2158,41 +2176,101 @@ async def pexels_video_generate(
                     output_path=local_video_path
                 )
                 if success:
-                    video_rel_path = f"tasks/{task_id}/video/pexels_video.mp4"
+                    video_rel_path_pexels = f"tasks/{task_id}/video/pexels_video.mp4"
                 else:
                     task_manager.update_status(0.6, "未找到匹配视频，将使用渐变背景", "processing")
-            
-            # Step 4: Write Remotion properties
-            audio_rel_path = f"tasks/{task_id}/audio/audio.wav"
-            props = {
-                "title": title or "",
-                "captions": segments,
-                "audioPath": audio_rel_path,
-                "videoPath": video_rel_path,
-                "subtitleLayout": subtitle_layout,
-                "bgmPath": bgm if bgm and bgm != "none" else None,
-                "audioVolume": media_volume,
-                "bgmVolume": bgm_volume
-            }
-            
-            props_path = task_manager.task_dir / "remotion_props.json"
-            with open(props_path, 'w', encoding='utf-8') as f:
-                json.dump(props, f, ensure_ascii=False, indent=2)
-                
+
             # Set video duration based on the last caption end time
             total_duration_ms = segments[-1]["endMs"] if segments else 5000
             duration_frames = int((total_duration_ms / 1000) * 30) + 30
-            
-            # Step 5: Render video in Remotion
-            task_manager.update_status(0.75, "正在合成视频...", "processing")
-            video_output = task_manager.get_dir("videos") / "remotion_video.mp4"
+            audio_rel_path = f"tasks/{task_id}/audio/audio.wav"
             from video.remotion_renderer import run_remotion_render
-            run_remotion_render(
-                props_path,
-                video_output,
-                duration_frames=duration_frames,
-                composition_id="PexelsVideoScene"
-            )
+
+            if generate_both:
+                # Render 1: Custom background video
+                task_manager.update_status(0.7, "正在合成自定义背景视频...", "processing")
+                props_custom = {
+                    "title": title or "",
+                    "captions": segments,
+                    "audioPath": audio_rel_path,
+                    "videoPath": video_rel_path_custom,
+                    "subtitleLayout": subtitle_layout,
+                    "bgmPath": bgm if bgm and bgm != "none" else None,
+                    "audioVolume": media_volume,
+                    "bgmVolume": bgm_volume,
+                    "bgVideoVolume": bg_video_volume
+                }
+                props_custom_path = task_manager.task_dir / "remotion_props_custom.json"
+                with open(props_custom_path, 'w', encoding='utf-8') as f:
+                    json.dump(props_custom, f, ensure_ascii=False, indent=2)
+
+                video_output_custom = task_manager.get_dir("videos") / "01_自定义背景视频.mp4"
+                run_remotion_render(
+                    props_custom_path,
+                    video_output_custom,
+                    duration_frames=duration_frames,
+                    composition_id="PexelsVideoScene"
+                )
+
+                # Render 2: Pexels background video
+                task_manager.update_status(0.85, "正在合成 Pexels 搜索背景视频...", "processing")
+                props_pexels = {
+                    "title": title or "",
+                    "captions": segments,
+                    "audioPath": audio_rel_path,
+                    "videoPath": video_rel_path_pexels,
+                    "subtitleLayout": subtitle_layout,
+                    "bgmPath": bgm if bgm and bgm != "none" else None,
+                    "audioVolume": media_volume,
+                    "bgmVolume": bgm_volume,
+                    "bgVideoVolume": 0.0
+                }
+                props_pexels_path = task_manager.task_dir / "remotion_props_pexels.json"
+                with open(props_pexels_path, 'w', encoding='utf-8') as f:
+                    json.dump(props_pexels, f, ensure_ascii=False, indent=2)
+
+                video_output_pexels = task_manager.get_dir("videos") / "02_Pexels搜索背景视频.mp4"
+                run_remotion_render(
+                    props_pexels_path,
+                    video_output_pexels,
+                    duration_frames=duration_frames,
+                    composition_id="PexelsVideoScene"
+                )
+
+                # Write clips.json metadata so both clips display correctly in the Web UI
+                clips_metadata = [
+                    {"title": "自定义背景版", "summary": "使用上传的自定义视频作为背景"},
+                    {"title": "Pexels背景版", "summary": f"基于 Pexels 搜索关键词 '{query_to_use}' 生成的视频"}
+                ]
+                clips_json_path = task_manager.get_dir("ai") / "clips.json"
+                clips_json_path.parent.mkdir(parents=True, exist_ok=True)
+                with open(clips_json_path, 'w', encoding='utf-8') as f:
+                    json.dump(clips_metadata, f, ensure_ascii=False, indent=2)
+            else:
+                task_manager.update_status(0.75, "正在合成视频...", "processing")
+                props = {
+                    "title": title or "",
+                    "captions": segments,
+                    "audioPath": audio_rel_path,
+                    "videoPath": video_rel_path_custom or video_rel_path_pexels,
+                    "subtitleLayout": subtitle_layout,
+                    "bgmPath": bgm if bgm and bgm != "none" else None,
+                    "audioVolume": media_volume,
+                    "bgmVolume": bgm_volume,
+                    "bgVideoVolume": bg_video_volume if has_custom_bg else 0.0
+                }
+                
+                props_path = task_manager.task_dir / "remotion_props.json"
+                with open(props_path, 'w', encoding='utf-8') as f:
+                    json.dump(props, f, ensure_ascii=False, indent=2)
+                    
+                video_output = task_manager.get_dir("videos") / "remotion_video.mp4"
+                run_remotion_render(
+                    props_path,
+                    video_output,
+                    duration_frames=duration_frames,
+                    composition_id="PexelsVideoScene"
+                )
             
             task_manager.update_status(1.0, "合成成功！", "completed")
         except Exception as e:

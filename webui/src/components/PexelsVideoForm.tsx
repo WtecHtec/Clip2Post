@@ -21,6 +21,8 @@ export const PexelsVideoForm: React.FC<PexelsVideoFormProps> = ({ onTaskStarted,
     // Volume state
     const [mediaVolume, setMediaVolume] = useState(1.0);
     const [bgmVolume, setBgmVolume] = useState(0.15);
+    const [bgVideoFile, setBgVideoFile] = useState<File | null>(null);
+    const [bgVideoVolume, setBgVideoVolume] = useState(0.0);
     
     const [isProcessing, setIsProcessing] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -65,7 +67,9 @@ export const PexelsVideoForm: React.FC<PexelsVideoFormProps> = ({ onTaskStarted,
                 subtitleLayout,
                 bgm,
                 mediaVolume,
-                bgmVolume
+                bgmVolume,
+                bgVideoFile,
+                bgVideoVolume
             });
             onTaskStarted(taskId);
         } catch (err: any) {
@@ -123,6 +127,63 @@ export const PexelsVideoForm: React.FC<PexelsVideoFormProps> = ({ onTaskStarted,
                 </div>
             </div>
 
+            {/* Custom Background Video Upload */}
+            <div className="option-section" style={{ marginBottom: '1.5rem' }}>
+                <h4 className="section-title" style={{ marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Video size={18} color="var(--accent-primary)" /> 自定义背景视频 (可选)
+                </h4>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '0.8rem' }}>
+                    上传自定义视频作为背景。若同时输入 Pexels 搜索词，系统将同时生成两个背景不同的视频。
+                </p>
+                <div
+                    className="upload-dropzone"
+                    style={{
+                        border: '2px dashed var(--border-color)',
+                        borderRadius: '12px',
+                        padding: '1.5rem 1rem',
+                        textAlign: 'center',
+                        cursor: 'pointer',
+                        backgroundColor: 'rgba(255,255,255,0.01)',
+                        transition: 'all 0.3s ease',
+                    }}
+                    onClick={() => document.getElementById('pexels-bg-video-upload')?.click()}
+                >
+                    <input
+                        id="pexels-bg-video-upload"
+                        type="file"
+                        accept="video/*"
+                        style={{ display: 'none' }}
+                        onChange={(e) => setBgVideoFile(e.target.files?.[0] || null)}
+                    />
+                    {bgVideoFile ? (
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                            <CheckCircle2 size={20} color="#10b981" />
+                            <span style={{ fontSize: '0.9rem', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '250px' }}>{bgVideoFile.name}</span>
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); setBgVideoFile(null); }}
+                                style={{
+                                    border: 'none',
+                                    background: 'none',
+                                    color: '#ef4444',
+                                    fontSize: '0.8rem',
+                                    cursor: 'pointer',
+                                    padding: '2px 6px',
+                                    borderRadius: '4px',
+                                    backgroundColor: 'rgba(239, 68, 68, 0.1)'
+                                }}
+                            >
+                                移除
+                            </button>
+                        </div>
+                    ) : (
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', color: 'var(--text-muted)' }}>
+                            <Upload size={18} />
+                            <span style={{ fontSize: '0.85rem' }}>点击或拖拽上传背景视频</span>
+                        </div>
+                    )}
+                </div>
+            </div>
+
             {/* Video Title */}
             <div className="option-section" style={{ marginBottom: '1.5rem' }}>
                 <h4 className="section-title" style={{ marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -156,11 +217,11 @@ export const PexelsVideoForm: React.FC<PexelsVideoFormProps> = ({ onTaskStarted,
                     <Search size={18} color="var(--accent-primary)" /> Pexels 背景搜索词 (可选)
                 </h4>
                 <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '0.8rem' }}>
-                    输入相关的英文或中文关键词来搜索背景视频。若留空，将直接使用默认暗色渐变背景。
+                    输入相关的英文或中文关键词来搜索背景视频。若同时上传了自定义背景视频，将同时生成两版视频。
                 </p>
                 <input
                     type="text"
-                    placeholder="例如: sunset, coding。留空则使用默认渐变背景..."
+                    placeholder="例如: sunset, coding。同时上传自定义背景时将生成两个视频..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     style={{
@@ -265,6 +326,24 @@ export const PexelsVideoForm: React.FC<PexelsVideoFormProps> = ({ onTaskStarted,
                         style={{ width: '100%', accentColor: 'var(--accent-primary)' }}
                     />
                 </div>
+
+                {bgVideoFile && (
+                    <div style={{ marginBottom: '1.2rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '0.4rem' }}>
+                            <span>背景视频音量 (Background Video Volume)</span>
+                            <span style={{ color: 'var(--accent-primary)', fontWeight: 'bold' }}>{Math.round(bgVideoVolume * 100)}%</span>
+                        </div>
+                        <input
+                            type="range"
+                            min="0"
+                            max="1.5"
+                            step="0.05"
+                            value={bgVideoVolume}
+                            onChange={(e) => setBgVideoVolume(parseFloat(e.target.value))}
+                            style={{ width: '100%', accentColor: 'var(--accent-primary)' }}
+                        />
+                    </div>
+                )}
 
                 <div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '0.4rem' }}>

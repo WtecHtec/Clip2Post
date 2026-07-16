@@ -34,6 +34,7 @@ export const PexelsVideoSceneSchema = z.object({
     bgmPath: z.string().optional().nullable(),
     audioVolume: z.number().optional().default(1.0),
     bgmVolume: z.number().optional().default(0.15),
+    bgVideoVolume: z.number().optional().default(0.0),
 });
 
 const ScrollingCaptions: React.FC<{
@@ -103,6 +104,7 @@ export const PexelsVideoScene: React.FC<z.infer<typeof PexelsVideoSceneSchema>> 
     bgmPath,
     audioVolume = 1.0,
     bgmVolume = 0.15,
+    bgVideoVolume = 0.0,
 }) => {
     const frame = useCurrentFrame();
     const { fps, durationInFrames } = useVideoConfig();
@@ -215,7 +217,8 @@ export const PexelsVideoScene: React.FC<z.infer<typeof PexelsVideoSceneSchema>> 
                             transform: `scale(${bgScale})`,
                         }}
                         loop
-                        muted
+                        volume={bgVideoVolume}
+                        muted={bgVideoVolume === 0}
                     />
                 ) : (
                     /* Fallback to premium purple-dark gradient if no search background is provided */
